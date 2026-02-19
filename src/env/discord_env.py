@@ -8,11 +8,15 @@ import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 
-from src.utils.episode_builder import load_base_data, episode_generator
-from src.utils.build_user_norms import USER_NORMS_PATH  # adjust if path different
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent))
+
+from utils.episode_builder import load_base_data, episode_generator
+from utils.build_user_norms import USER_NORMS_PATH  # adjust if path different
 import json
 from pathlib import Path
-from src.utils.language_utils import SUPPORTED_LANGUAGES
+from utils.language_utils import SUPPORTED_LANGUAGES
 
 @dataclass
 class UserNorm:
@@ -138,6 +142,12 @@ class DiscordEnv(gym.Env):
         # History buffers to track actions and rewards for the current chunk
         self._episode_actions_history: List[int] = []
         self._episode_rewards_history: List[float] = []
+        thresholds_path = Path(__file__).resolve().parents[2] / "data" / "calibrated_thresholds.json"
+        if thresholds_path.exists():
+            with open(thresholds_path, "r") as f:
+                self._calibrated_thresholds = json.load(f)
+        else:
+            self._calibrated_thresholds = {"default": 0.8}
 
     # ------------------------------------------------------------------
     # Helpers
@@ -247,17 +257,35 @@ class DiscordEnv(gym.Env):
         """
         assert self.action_space.contains(action), f"Invalid action: {action}"
         
+        info: Dict[str, Any] = {}
         idx = self._current_step_in_chunk
+        current_score = self._current_chunk.toxicity_scores[idx]
+        current_lang = self._current_chunk.languages[idx]  # <-- ADD THIS LINE
         
         # 1. Record action in the episode history (added in Day 9)
         self._episode_actions_history.append(action)
         
-        # 2. State Transition Logic (Day 11)
-        # If DELETE (action == 2), scrub the message from the chunk's memory
+        current_user = self._current_chunk.user_ids[idx]
+        
+        # If DELETE (action == 2), scrub the current message from memory
         if action == 2:
             self._current_chunk.messages[idx] = "[DELETED]"
-            # Set its embedding to a zero vector so the policy forgets it
             self._current_chunk.embeddings[idx] = np.zeros(self.EMBEDDING_DIM, dtype=np.float32)
+            
+        # --- NEW DAY 12: User Simulator Logic ---
+        # If WARN (action == 1), reduce the toxicity of all future messages from this user in this chunk by 20%
+        elif action == 1:
+            for future_idx in range(idx + 1, len(self._current_chunk.messages)):
+                if self._current_chunk.user_ids[future_idx] == current_user:
+                    self._current_chunk.toxicity_scores[future_idx] *= 0.8
+                    
+        # If BAN (action == 3), scrub all future messages from this user in this chunk
+        elif action == 3:
+            for future_idx in range(idx + 1, len(self._current_chunk.messages)):
+                if self._current_chunk.user_ids[future_idx] == current_user:
+                    self._current_chunk.messages[future_idx] = "[BANNED]"
+                    self._current_chunk.embeddings[future_idx] = np.zeros(self.EMBEDDING_DIM, dtype=np.float32)
+                    self._current_chunk.toxicity_scores[future_idx] = 0.0
             
         # 3. Advance the step counter
         self._current_step_in_chunk += 1
@@ -276,7 +304,32 @@ class DiscordEnv(gym.Env):
             obs = self._build_observation(self._current_step_in_chunk)
             
         # 5. Reward (Placeholder for Phase 3)
-        reward = 0.0
+        # 1. Calculate Confidence Weight
+        # SUPPORTED_LANGUAGES should already be imported at the top of the file
+        confidence_weight = 1.0 if self._current_language in SUPPORTED_LANGUAGES else 0.6
+        
+        # 2. Calculate Safety Cost 
+        # Triggered if a highly toxic message is present. 
+        # Get the calibrated threshold for the current language, fallback to 'default' if not found
+        threshold = self._calibrated_thresholds.get(current_lang, self._calibrated_thresholds.get("default", 0.8))
+        
+        # Triggered if the message's toxicity exceeds this language's specific 90th percentile threshold
+        safety_cost = (10.0 * confidence_weight) if current_score > threshold else 0.0
+        #safety_cost = (10.0 * confidence_weight) if current_score > 0.8 else 0.0
+        
+        # 3. Calculate Base Reward
+        if action == 0:  # ALLOW
+            # +1 for fostering engagement, minus safety cost if it was actually toxic
+            reward = 1.0 - safety_cost
+            
+            # Log the incurred cost in info for the Lagrangian wrapper (Day 16)
+            info["safety_cost"] = safety_cost
+        else:
+            # Interventions (WARN, DELETE, BAN) yield 0 engagement reward.
+            # (Note: False positive penalties will be added in Day 17)
+            reward = 0.0
+            info["safety_cost"] = 0.0
+            
         self._episode_rewards_history.append(reward)
         
         # 6. Server Stats Bookkeeping (from Day 8)
@@ -290,7 +343,7 @@ class DiscordEnv(gym.Env):
             self._server_ban_rate = self._total_bans / self._total_actions
             self._server_warn_rate = self._total_warns / self._total_actions
             
-        info = {}
+        #info = {}
         
         return obs, reward, terminated, truncated, info
 
