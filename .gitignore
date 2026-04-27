@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment variables (contains secrets)
+.env
+
+# Data artifacts (large, regeneratable)
+data/raw/
+data/processed/*.npy
+data/processed/*.json
+!data/processed/toxicity_calibration.json
+data/bot/*.db
+
+# Model weights (large binary files)
+data/models/*.zip
+data/models/best/*.zip
+data/models/bc_init.zip
+
+# HuggingFace cache
+.cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Claude Code
+.claude/
