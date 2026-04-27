@@ -1,15 +1,17 @@
 """
-Multilingual ModBot — Discord Server Simulator (Gradio demo for HF Spaces).
+Multilingual ModBot — Shared Discord Server Simulator (Gradio demo for HF Spaces).
 
-Reviewers pick a persona (Alice / Bob / Diego / Priya / Yuki / Charlie),
-send messages, and watch the moderation agent respond inline in a
-Discord-styled chat feed. Each persona maintains its own infraction
-ledger; switching personas updates the profile sidebar. Reset wipes the
-channel for this session.
+All connected visitors share ONE channel and ONE moderator ledger — like a real
+Discord server. Pick a persona, send a message, and everyone else's view updates
+within ~1 second via a Gradio Timer poll. Mod actions (warn, delete, timeout,
+ban) are visible to all visitors. The persona radio is just a "speaking as"
+selector — multiple visitors can speak as the same persona (their messages
+stack on the same ledger, like alt-tabbed Discord sessions).
 """
 import os
 import sys
-import uuid
+import threading
+import time
 from pathlib import Path
 
 import gradio as gr
@@ -36,6 +38,12 @@ PERSONAS = [
 PERSONA_DICT = {pid: (name, color) for pid, name, color in PERSONAS}
 
 
+# ── shared global state ────────────────────────────────────────────
+CHANNEL: list = []        # list of message dicts, shared by all visitors
+CHANNEL_LOCK = threading.Lock()
+CHANNEL_ID = "global_channel"   # one logical channel for the whole server
+
+
 # ── rendering ───────────────────────────────────────────────────────
 DECISION_BADGE = {
     "ALLOW":    "",
@@ -48,38 +56,48 @@ DECISION_BADGE = {
 
 
 def _esc(text: str) -> str:
-    return (text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def render_channel(messages: list) -> str:
+def render_channel() -> str:
     header = (
         '<div style="background:#2F3136; color:#FFF; padding:8px 14px; '
         'border-radius:8px 8px 0 0; font-weight:bold; font-family:sans-serif;">'
-        '#general'
+        '#general &middot; <span style="color:#3BA55C;">live · shared by all visitors</span>'
         '</div>'
     )
-    if not messages:
+    with CHANNEL_LOCK:
+        snapshot = list(CHANNEL)
+
+    if not snapshot:
         body = (
             '<div style="background:#36393F; color:#888; padding:40px; '
             'text-align:center; border-radius:0 0 8px 8px; font-family:sans-serif;">'
-            'No messages yet — pick a persona and say something.'
+            'No messages yet — pick a persona and say something. '
+            'Other visitors will see it in real time.'
             '</div>'
         )
         return header + body
 
     rows = [
-        '<div style="background:#36393F; color:#DCDDDE; padding:12px; '
-        'border-radius:0 0 8px 8px; font-family:sans-serif; '
+        '<div id="modbot-channel" style="background:#36393F; color:#DCDDDE; '
+        'padding:12px; border-radius:0 0 8px 8px; font-family:sans-serif; '
         'max-height:480px; overflow-y:auto;">'
     ]
-    for m in messages:
+    for m in snapshot:
         name = _esc(m["name"])
         color = m["color"]
         deleted = m["decision"] in ("DELETE", "TIMEOUT", "BAN", "REJECTED")
         avatar_letter = name[0].upper()
         msg_style = "text-decoration:line-through; color:#72767D;" if deleted else ""
         threat_str = f' · threat={_esc(m["threat"])}' if m["threat"] else ""
+        ts = m.get("ts", "")
 
+        badge = DECISION_BADGE.get(m["decision"], "")
+        badge_html = (
+            f'<div style="font-size:0.85em; margin-top:2px;">{badge}</div>'
+            if badge else ""
+        )
         rows.append(
             f'<div style="display:flex; gap:12px; padding:8px 0; '
             f'border-bottom:1px solid #2F3136;">'
@@ -90,22 +108,28 @@ def render_channel(messages: list) -> str:
             f'  <div style="flex:1; min-width:0;">'
             f'    <div><span style="color:{color}; font-weight:600;">{name}</span> '
             f'      <span style="color:#72767D; font-size:0.8em;">'
-            f'tox={m["tox"]:.2f} · {_esc(m["lang"])}{threat_str}'
+            f'{ts} · tox={m["tox"]:.2f} · {_esc(m["lang"])}{threat_str}'
             f'      </span>'
             f'    </div>'
             f'    <div style="{msg_style} word-wrap:break-word;">{_esc(m["content"])}</div>'
-            f'    {"<div style=\"font-size:0.85em; margin-top:2px;\">" + DECISION_BADGE[m["decision"]] + "</div>" if DECISION_BADGE.get(m["decision"]) else ""}'
+            f'    {badge_html}'
             f'  </div>'
             f'</div>'
         )
-    rows.append('</div>')
-    return header + ''.join(rows)
+    rows.append("</div>")
+    # Auto-scroll to bottom on every render (so new messages stay visible).
+    rows.append(
+        '<script>'
+        '(function(){var el=document.getElementById("modbot-channel");'
+        'if(el){el.scrollTop=el.scrollHeight;}})();'
+        '</script>'
+    )
+    return header + "".join(rows)
 
 
-def render_profile(persona_id: str, scope: str) -> str:
+def render_profile(persona_id: str) -> str:
     name, color = PERSONA_DICT.get(persona_id, ("?", "#72767D"))
-    user_id = f"{scope}:{persona_id}"
-    p = moderator.get_user_profile(user_id)
+    p = moderator.get_user_profile(persona_id)
     rows = [
         ("Status", str(p.get("status", "—"))),
         ("Warns", f'{p.get("warns", 0):.0f}'),
@@ -130,14 +154,14 @@ def render_profile(persona_id: str, scope: str) -> str:
 
 
 # ── handlers ────────────────────────────────────────────────────────
-def send(channel: list, scope: str, persona_id: str, message: str):
+def send(persona_id: str, message: str):
+    """Append a message from `persona_id` to the global channel."""
     if not message.strip():
-        return channel, render_channel(channel), render_profile(persona_id, scope), ""
+        return render_channel(), render_profile(persona_id), ""
     name, color = PERSONA_DICT[persona_id]
-    user_id = f"{scope}:{persona_id}"
-    result = moderator.moderate(message, user_id, channel_id=scope)
+    result = moderator.moderate(message, persona_id, channel_id=CHANNEL_ID)
 
-    channel = channel + [{
+    entry = {
         "name": name,
         "color": color,
         "content": message,
@@ -145,26 +169,27 @@ def send(channel: list, scope: str, persona_id: str, message: str):
         "tox": result.get("toxicity") or 0.0,
         "lang": result.get("language", "?"),
         "threat": result.get("threat_detected"),
-    }]
-    return channel, render_channel(channel), render_profile(persona_id, scope), ""
-
-
-def reset_channel(scope: str, persona_id: str):
-    for k in list(moderator.user_ledger.keys()):
-        if k.startswith(f"{scope}:"):
-            del moderator.user_ledger[k]
-    moderator.banned_users = {
-        u for u in moderator.banned_users if not u.startswith(f"{scope}:")
+        "ts": time.strftime("%H:%M:%S"),
     }
-    return [], render_channel([]), render_profile(persona_id, scope)
+    with CHANNEL_LOCK:
+        CHANNEL.append(entry)
+    return render_channel(), render_profile(persona_id), ""
 
 
-def switch_persona(persona_id: str, scope: str):
-    return render_profile(persona_id, scope)
+def reset_channel(persona_id: str):
+    """Wipe the channel AND the moderator ledger for everyone."""
+    with CHANNEL_LOCK:
+        CHANNEL.clear()
+    moderator.user_ledger.clear()
+    moderator.banned_users.clear()
+    moderator.recent_toxicity.clear()
+    moderator.recent_actions.clear()
+    return render_channel(), render_profile(persona_id)
 
 
-def new_scope():
-    return uuid.uuid4().hex[:8]
+def tick(persona_id: str):
+    """Periodic refresh — re-renders channel + profile for every connected client."""
+    return render_channel(), render_profile(persona_id)
 
 
 # ── UI ─────────────────────────────────────────────────────────────
@@ -181,22 +206,20 @@ EXAMPLES = [
     ["bhai theek se khelo na"],
 ]
 
-with gr.Blocks(title="ModBot — Discord Simulator", theme=gr.themes.Base()) as demo:
-    scope_state = gr.State(new_scope)
-    channel_state = gr.State([])
-
+with gr.Blocks(title="ModBot — Shared Discord Simulator", theme=gr.themes.Base()) as demo:
     gr.Markdown(
         """
-        # Multilingual ModBot — Discord Server Simulator
-        Pick a persona, send a message, and watch the moderation agent respond in
-        real time. Each persona keeps its own infraction history. Send 5+ benign
-        messages from a previously-warned persona to see cool-down rehabilitation.
+        # Multilingual ModBot — Shared Discord Server
+        **Live, multi-user demo.** Open this page on multiple devices, each pick a different persona,
+        and chat together. Everyone sees the same `#general` channel and the moderator's
+        decisions in real time (~1 s refresh).
+        Reset wipes the channel and ledger for **all** visitors.
         """
     )
 
     with gr.Row():
         with gr.Column(scale=2):
-            channel_view = gr.HTML(value=render_channel([]))
+            channel_view = gr.HTML(value=render_channel())
             persona = gr.Radio(
                 choices=[(name, pid) for pid, name, _ in PERSONAS],
                 value="alice",
@@ -209,12 +232,12 @@ with gr.Blocks(title="ModBot — Discord Simulator", theme=gr.themes.Base()) as 
             )
             with gr.Row():
                 send_btn = gr.Button("Send", variant="primary", scale=3)
-                reset_btn = gr.Button("Reset channel", scale=1)
+                reset_btn = gr.Button("Reset channel (everyone)", scale=1)
             gr.Examples(examples=EXAMPLES, inputs=[msg_input], label="Try these")
 
         with gr.Column(scale=1):
-            gr.Markdown("### User profile")
-            profile_view = gr.HTML(value=render_profile("alice", "init"))
+            gr.Markdown("### Selected persona")
+            profile_view = gr.HTML(value=render_profile("alice"))
             gr.Markdown(
                 """
                 **Action ladder**
@@ -227,24 +250,13 @@ with gr.Blocks(title="ModBot — Discord Simulator", theme=gr.themes.Base()) as 
                 """
             )
 
-    persona.change(switch_persona, [persona, scope_state], profile_view)
-    send_btn.click(
-        send,
-        [channel_state, scope_state, persona, msg_input],
-        [channel_state, channel_view, profile_view, msg_input],
-    )
-    msg_input.submit(
-        send,
-        [channel_state, scope_state, persona, msg_input],
-        [channel_state, channel_view, profile_view, msg_input],
-    )
-    reset_btn.click(
-        reset_channel,
-        [scope_state, persona],
-        [channel_state, channel_view, profile_view],
-    )
+    send_btn.click(send, [persona, msg_input], [channel_view, profile_view, msg_input])
+    msg_input.submit(send, [persona, msg_input], [channel_view, profile_view, msg_input])
+    persona.change(render_profile, persona, profile_view)
+    reset_btn.click(reset_channel, persona, [channel_view, profile_view])
 
-    demo.load(switch_persona, [persona, scope_state], profile_view)
+    timer = gr.Timer(value=1.0)
+    timer.tick(tick, persona, [channel_view, profile_view])
 
 
 if __name__ == "__main__":
