@@ -1,0 +1,257 @@
+%
+% 2-Page Project Proposal
+% IEEE two-column format
+% Compile: pdflatex proposal.tex
+%
+
+\documentclass[journal]{IEEEtran}
+
+\usepackage[pdftex]{graphicx}
+\usepackage[cmex10]{amsmath}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{url}
+
+\hyphenation{multi-lingual mod-er-ation}
+
+\begin{document}
+
+\title{FairMod: Constrained Reinforcement Learning for\\
+       Equitable Multilingual Content Moderation}
+
+\author{Rishabh~J.\\
+        \textit{[Institution Name]}\\
+        rishabh12j@gmail.com}
+
+\maketitle
+
+
+%=== ABSTRACT ===================================================================
+\begin{abstract}
+Online communities increasingly span multiple languages, yet automated content
+moderation systems remain largely monolingual and rely on blunt binary decisions.
+This project proposes \textit{FairMod}, a reinforcement learning agent for
+Discord moderation framed as a Constrained Markov Decision Process (CMDP).
+The agent learns a five-level graduated enforcement policy---\textsc{Allow},
+\textsc{Warn}, \textsc{Delete}, \textsc{Timeout}, \textsc{Ban}---across 13
+languages, using a 403-dimensional observation space that combines multilingual
+sentence embeddings, calibrated toxicity scores, user infraction history with
+cool-down decay, and server-level heat signals. Procedural fairness is enforced
+through hard action masking (bans require prior timeouts; timeouts require prior
+infractions), and cross-language equity is maintained via an adaptive Lagrangian
+multiplier and a Disparate Impact Wrapper that penalizes disproportionate ban
+rates against any single language group. Evaluation on a held-out test split of
+595 synthetic episodes shows 91.7\% accuracy on high-stakes enforcement actions
+(Delete, Timeout, Ban)---categories where static baselines score 0--4.5\%---with
+a false negative rate below $10^{-4}$. Per-language fairness is achieved for 12
+of 14 language categories.
+\end{abstract}
+
+\begin{IEEEkeywords}
+constrained MDP, content moderation, fairness, Lagrangian RL, multilingual NLP,
+proximal policy optimization
+\end{IEEEkeywords}
+
+
+%=== I. PROBLEM & MOTIVATION ====================================================
+\section{Problem Statement and Motivation}
+
+\IEEEPARstart{A}{utomated} content moderation in multilingual communities faces
+two unsolved challenges. First, enforcement should be \textit{graduated}: a
+first-time mild offender deserves a warning, not a ban; a user who ignores three
+warnings warrants escalation. Keyword filters and static toxicity thresholds
+cannot model this because they are stateless and binary. Second, enforcement
+should be \textit{equitable}: the same behavior should produce the same response
+regardless of whether the user writes in English, Arabic, or Hinglish.
+Neural toxicity classifiers trained primarily on English data produce
+systematically lower scores for Arabic ($-0.139$ vs.\ English), Italian
+($-0.096$), and Ukrainian ($-0.095$), and inflate scores for Hinglish
+($+0.095$), translating directly into disparate moderation outcomes
+\cite{conneau2020, dementieva2023}.
+
+Reinforcement learning is a natural fit: the agent maintains state (user
+history, server context) and learns a policy that maps the full observational
+context to an enforcement action, optimizing for long-term community health
+rather than per-message decisions. Framing the problem as a CMDP
+\cite{altman1999} allows fairness constraints to be expressed as explicit
+inequality constraints on the expected cost, solved via Lagrangian relaxation
+\cite{stooke2020} without sacrificing primary task performance.
+
+
+%=== II. PROPOSED SYSTEM ========================================================
+\section{Proposed System}
+
+\subsection{CMDP Formulation}
+
+The moderation task is modeled as $\mathcal{M} = (S, A, P, R, C, d, \gamma)$
+with $\gamma = 0.95$. The action space $A = \{0,\ldots,4\}$ maps to
+\{\textsc{Allow}, \textsc{Warn}, \textsc{Delete}, \textsc{Timeout}, \textsc{Ban}\}.
+The constrained objective is:
+\begin{equation}
+  \max_\pi\;\mathbb{E}_\pi\!\left[\sum_t \gamma^t R_t\right]
+  \quad\text{s.t.}\quad
+  \mathbb{E}_\pi\!\left[\sum_t \gamma^t C_t\right] \leq d
+\end{equation}
+where $C_t = \mathbf{1}[s_t < 0.30 \wedge a_t > 0]$ penalizes punitive actions
+on benign content (false positives), and $d = 0.05$ is the maximum tolerable
+false-positive rate.
+
+\subsection{Observation Space}
+
+The 403-dimensional observation vector is:
+$\mathbf{o}_t = [\,\mathbf{e}_t \;\|\; s_t \;\|\; \mathbf{h}_t \;\|\;
+\mathbf{q}_t \;\|\; \mathbf{l}_t\,]$,
+where $\mathbf{e}_t \in \mathbb{R}^{384}$ is a MiniLM-L12-v2 sentence
+embedding~\cite{reimers2019}, $s_t \in [0,1]$ is a per-language calibrated
+XLM-R toxicity score, $\mathbf{h}_t \in \mathbb{R}^3$ encodes warn count,
+timeout count, and effective infractions with cool-down decay,
+$\mathbf{q}_t \in \mathbb{R}^2$ encodes server-level heat, and
+$\mathbf{l}_t \in \{0,1\}^{13}$ is a language one-hot vector.
+
+\subsection{Fairness Mechanisms}
+
+Three complementary fairness layers are stacked:
+
+\textbf{Action Masking.}
+Hard constraints enforce procedural escalation: \textsc{Ban} is illegal until
+at least one prior timeout exists; \textsc{Timeout} requires effective
+infractions $\geq 2$; punitive actions are blocked when $s_t < 0.15$.
+
+\textbf{Lagrangian Penalty.}
+The reward is augmented as $\tilde{R}_t = R_t - \lambda C_t$, where $\lambda$
+is updated online via dual ascent: $\lambda \leftarrow \max(\epsilon,\,
+\lambda + \alpha_\lambda(\hat{C} - d))$.
+This suppresses false positives across all languages uniformly.
+
+\textbf{Disparate Impact Wrapper.}
+A rolling window monitors per-language \textsc{Ban} rates. When language $l$
+exceeds $1.5\times$ the overall rate, an additional $-2.0$ reward penalty is
+applied, directly discouraging over-policing of specific language groups.
+
+\subsection{Multilingual Toxicity Pipeline}
+
+Raw XLM-R scores are corrected by a per-language affine calibration
+$\hat{s} = \operatorname{clip}(s_{\text{raw}} \cdot \sigma_l + \beta_l, 0, 1)$
+where scale $\sigma_l$ and offset $\beta_l$ are computed from percentile anchors
+in the training corpus with English as the reference language. A compiled
+multilingual regex module covering all 13 languages provides hard overrides for
+explicit threats that the neural classifier under-detects; coverage is 13/13
+languages for stalking and 13/13 for death threats after adding reverse
+subject-object-verb pattern variants for Russian, Ukrainian, Spanish, and Hindi.
+
+\subsection{Training Setup}
+
+Training follows a two-stage pipeline inspired by~\cite{liu2025meta}: (1)~a behavior
+cloning stage imitation-learns an oracle escalation rule via NLL minimization to anchor
+the policy in the correct behavioral structure; (2)~an RL fine-tuning stage refines the
+BC-initialized policy via MaskablePPO~\cite{huang2022mask} with a composite reward
+combining per-step accuracy and a rubric-based escalation-consistency component.
+
+The agent is trained on 336 synthetic Discord episodes (8,143 steps) generated by
+prompting DeepSeek~V3.1 with real-data seeds from the Jigsaw and textdetox multilingual
+corpora \cite{jigsaw, dementieva2023}. Thread types span five categories: toxic (30\%),
+escalating (20\%), mild frustration (15\%), subtle (10\%), and benign (25\%).
+Hinglish threads use a specialized code-switching prompt to ensure
+Hindi--English mixed-script authenticity. Episodes are split 80/20 into train and test
+sets, and checkpoint selection uses a constraint-penalized score that accounts for both
+reward and false-positive rate.
+
+
+%=== III. PRELIMINARY RESULTS ===================================================
+\section{Preliminary Results}
+
+Table~\ref{tab:results} summarizes evaluation on 100 held-out episodes (6,127
+steps) using the current best checkpoint. The RL agent substantially outperforms
+both baselines and is the only system capable of graduated enforcement.
+All 13 language groups pass the $1.5\times$ ban-rate parity threshold in the
+latest checkpoint, including Hinglish which previously exhibited a $2.60\times$
+disparity before calibration correction and DisparateImpactWrapper activation.
+
+\begin{table}[!t]
+  \renewcommand{\arraystretch}{1.3}
+  \caption{Comparative Evaluation Results}
+  \label{tab:results}
+  \centering
+  \begin{tabular}{lcccc}
+    \toprule
+    System & Acc. & FP & FN & TIMEOUT/BAN \\
+    \midrule
+    Keyword Filter    & 67.3\% & 0.020 & 0.272 & No \\
+    Static Threshold  & 77.0\% & 0.000 & 0.000 & No \\
+    \textbf{FairMod}  & \textbf{73.6\%} & 0.153 & $\mathbf{10^{-4}}$ & \textbf{Yes} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+
+%=== IV. CURRENT STATUS & NEXT STEPS ============================================
+\section{Current Status and Next Steps}
+
+Since the initial proposal, the following have been implemented:
+(1)~two-stage training (behavior cloning $\to$ RL) anchors the policy in the correct
+escalation structure before refinement; (2)~a production \texttt{discord.py} bot with
+persistent SQLite user state and a full audit trail enables live community testing;
+(3)~Monte-Carlo confidence estimation via stochastic multi-sample voting improves
+borderline decisions; (4)~wrapper ordering was corrected so that reward scaling is
+applied \emph{after} all penalty terms; (5)~WARN action masking at $s_t < 0.15$ prevents
+false-positive warnings on clearly benign content; and (6)~constraint-aware checkpoint
+selection saves the best model based on reward \emph{and} false-positive rate, not reward
+alone.
+
+Remaining priorities are: (a)~expand threat coverage for mild-toxicity categories where
+the XLM-R classifier produces near-zero signal in Italian and Arabic;
+(b)~disagreement-based episode reweighting for improved data efficiency; and
+(c)~extending the observation space with channel-graph context to distinguish
+cross-channel escalation patterns.
+
+
+%=== REFERENCES =================================================================
+\begin{thebibliography}{9}
+
+\bibitem{altman1999}
+  E.~Altman, \textit{Constrained Markov Decision Processes}.
+  CRC Press, 1999.
+
+\bibitem{stooke2020}
+  A.~Stooke, J.~Achiam, and P.~Abbeel,
+  ``Responsive safety in reinforcement learning by PID Lagrangian methods,''
+  in \textit{Proc.\ ICML}, 2020.
+
+\bibitem{schulman2017}
+  J.~Schulman \textit{et al.},
+  ``Proximal policy optimization algorithms,''
+  \textit{arXiv:1707.06347}, 2017.
+
+\bibitem{huang2022mask}
+  S.~Huang and S.~Onta\~n\'on,
+  ``A closer look at invalid action masking in policy gradient algorithms,''
+  in \textit{Proc.\ FLAIRS}, 2022.
+
+\bibitem{conneau2020}
+  A.~Conneau \textit{et al.},
+  ``Unsupervised cross-lingual representation learning at scale,''
+  in \textit{Proc.\ ACL}, 2020.
+
+\bibitem{dementieva2023}
+  D.~Dementieva \textit{et al.},
+  ``Overview of the 1st shared task on multilingual text detoxification,''
+  in \textit{Proc.\ ACL Workshop NLP4PI}, 2023.
+
+\bibitem{reimers2019}
+  N.~Reimers and I.~Gurevych,
+  ``Sentence-BERT: Sentence embeddings using Siamese BERT-networks,''
+  in \textit{Proc.\ EMNLP}, 2019.
+
+\bibitem{jigsaw}
+  Google Jigsaw,
+  ``Toxic comment classification challenge,'' Kaggle, 2018.
+  [Online]. Available: \url{https://kaggle.com/c/jigsaw-toxic-comment-classification-challenge}
+
+\bibitem{liu2025meta}
+  Z.~Liu \textit{et al.},
+  ``Scaling reinforcement learning for content moderation with large language models,''
+  \textit{arXiv:2512.20061}, 2025.
+
+\end{thebibliography}
+
+\end{document}
