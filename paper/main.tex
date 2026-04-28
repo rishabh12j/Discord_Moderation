@@ -36,10 +36,11 @@
 
 \title{Constrained Reinforcement Learning for Equitable\\Multilingual Content Moderation}
 
-\author{Rishabh~J.,~\IEEEmembership{Student Member,~IEEE}%
-  \thanks{Manuscript received April 15, 2026.}
-  \thanks{R.~J. is with [Institution], [City], [Country]
-          (e-mail: rishabh12j@gmail.com).}}
+\author{Rishabh~Jain,~\IEEEmembership{Student Member,~IEEE}%
+  \thanks{Manuscript prepared April 30, 2026 for the MURL\,2026 conference.}
+  \thanks{R.~Jain is with the Department of Computer Science, Maynooth University,
+          Maynooth, Ireland (e-mail: rishabh12j@gmail.com).}
+  \thanks{Source code: \url{https://gitlab.cs.nuim.ie/p260055/multilingual-rl-moderation}}}
 
 \markboth{IEEE TRANSACTIONS ON COMPUTATIONAL SOCIAL SYSTEMS,~VOL.~XX,~NO.~XX,~2026}%
 {J.: Constrained RL for Multilingual Content Moderation}
@@ -50,43 +51,23 @@
 %=== ABSTRACT ===================================================================
 \begin{abstract}
 We present a reinforcement learning system for multilingual Discord content moderation,
-framed as a Constrained Markov Decision Process (CMDP). Unlike binary or keyword-based
-approaches, our agent operates over a five-level graduated action space---\textsc{Allow},
-\textsc{Warn}, \textsc{Delete}, \textsc{Timeout}, and \textsc{Ban}---with hard action
-masking that enforces procedural escalation: timeouts require prior infractions, bans
-require prior timeouts. The system supports 13 languages (English, Russian, Ukrainian,
-German, Spanish, Arabic, Hindi, Chinese, Italian, French, Hebrew, Japanese, and Hinglish)
-through a 403-dimensional observation space combining 384-dimensional multilingual sentence
-embeddings, per-language calibrated XLM-R toxicity scores, user infraction history with
-cool-down decay, rolling server heat signals, and a language identity encoding. Fairness
-is enforced through two complementary mechanisms: an adaptive Lagrangian multiplier that
-penalizes false positives against benign users, and a Disparate Impact Wrapper that applies
-reward penalties when any language's ban rate exceeds $1.5\times$ the population baseline.
-Training follows a two-stage pipeline inspired by recent findings on RL for content
-moderation at scale~\cite{liu2025meta}: a behavior cloning (BC) stage first anchors the
-policy in the correct escalation structure via supervised imitation of an oracle rule, and
-a subsequent MaskablePPO stage refines the policy beyond the oracle using a composite reward
-that includes a rubric-based escalation-consistency component evaluating trajectory quality
-in addition to per-step accuracy. For borderline toxicity scores, Monte-Carlo confidence
-estimation via stochastic multi-sample voting replaces single-pass deterministic inference,
-reducing false confidence on ambiguous content.
-Per-language affine calibration corrects systematic scoring biases in the XLM-R classifier,
-and a language-aware multilingual regex module provides coverage for threats that the
-classifier under-detects. User rehabilitation is modeled through effective infraction decay:
-sustained clean behavior reduces a user's risk profile over time. The system is deployed as
-a production Discord bot with persistent SQLite state, asynchronous inference, and a full
-audit trail. Trained on 595 synthetic episodes (8,016 steps) generated using DeepSeek~V3.1 and
-evaluated on a held-out test split, the agent achieves 91.7\% accuracy on high-stakes
-enforcement actions (Delete, Timeout, Ban)---categories where static baselines score 0--4.5\%---while
-maintaining a false negative rate below $10^{-4}$. Overall accuracy (73.6\%) reflects
-a conservative over-warning bias at the benign boundary, a deliberate safety tradeoff.
-Per-language fairness is achieved for 12 of 14 language categories; residual disparate impact
-in Hindi ($1.92\times$) and Hinglish ($1.64\times$) is traced to systematic over-scoring
-in the upstream XLM-R classifier that calibration cannot fully correct.
-Procedural scenario testing confirms correct escalation, sustained-troll detection,
-and user rehabilitation mechanics. These results demonstrate that constrained RL with
-fairness-aware reward shaping and two-stage training produces nuanced, graduated moderation
-policies suitable for real multilingual communities.
+framed as a Constrained Markov Decision Process (CMDP). The agent operates over a
+five-level graduated action space---\textsc{Allow}, \textsc{Warn}, \textsc{Delete},
+\textsc{Timeout}, \textsc{Ban}---with hard action masking that enforces procedural
+escalation across 13 languages. The 403-dimensional observation combines multilingual
+sentence embeddings, per-language calibrated XLM-R toxicity scores, user infraction
+history with cool-down decay, server heat signals, and a language identity encoding.
+Fairness is enforced via an adaptive Lagrangian multiplier penalizing false positives,
+and a Disparate Impact Wrapper that adds reward penalties when any language's ban rate
+exceeds $1.5\times$ the baseline. Training follows a two-stage behavior-cloning to
+MaskablePPO pipeline~\cite{liu2025meta} with a rubric-based escalation-consistency
+reward and Monte-Carlo confidence voting at borderline toxicity. Trained on 595
+synthetic episodes (8,016 steps) and evaluated on a held-out test split, the agent
+achieves 91.7\% accuracy on high-stakes actions (\textsc{Delete}/\textsc{Timeout}/\textsc{Ban})---categories
+where static baselines score 0--4.5\%---while keeping the false-negative rate below
+$10^{-4}$. Per-language parity holds for 12 of 14 categories; residual disparate impact
+in Hindi ($1.92\times$) and Hinglish ($1.64\times$) is traced to upstream XLM-R bias
+that calibration cannot fully correct.
 \end{abstract}
 
 
@@ -174,7 +155,7 @@ subject to the fairness constraints
 
 \subsection{Lagrangian Relaxation}
 
-We solve the CMDP via Lagrangian relaxation \cite{altman1999}. The primal--dual objective is
+We solve the CMDP via Lagrangian relaxation \cite{altman1999,stooke2020}. The primal--dual objective is
 
 \begin{equation}\label{eq:lagrangian}
   \mathcal{L}(\pi, \boldsymbol{\lambda}) =
@@ -213,17 +194,12 @@ and user history:
   \end{cases}
 \end{equation}
 
-Additional context-sensitive penalties are applied: $-3.0$ for banning without a prior
-timeout record; $-2.0$ for a timeout action when effective infractions $e_t < 2$; $-2.0$
-for any punitive action on benign content ($s_t < 0.20$); and $-3.0$ for \textsc{Allow}
-on clearly toxic content ($s_t \geq 0.70$). The combined reward is scaled and clipped:
-
-\begin{equation}\label{eq:reward_clip}
-  R_t = \operatorname{clip}\!\left(\frac{R^{\text{base}}_t}{5},\; -1,\; 1\right).
-\end{equation}
-
-Clipping to $[-1, 1]$ stabilizes the PPO value network by preventing exploding
-gradient issues from large raw rewards \cite{schulman2017ppo}.
+Context-sensitive penalties augment the base term: $-3.0$ for \textsc{Ban} without a
+prior timeout, $-2.0$ for \textsc{Timeout} with $e_t < 2$, $-2.0$ for any punitive action
+on benign content ($s_t < 0.20$), and $-3.0$ for \textsc{Allow} on clearly toxic content
+($s_t \geq 0.70$). The combined reward is then scaled and clipped to $[-1,1]$ via
+$R_t = \operatorname{clip}(R^{\text{base}}_t/5,\, -1,\, 1)$, stabilizing the PPO value
+network~\cite{schulman2017ppo}.
 
 \subsection{Action Masking}
 
@@ -268,7 +244,7 @@ Table~\ref{tab:obs_space} details each component.
     \toprule
     Symbol & Component & Dims & Description \\
     \midrule
-    $\mathbf{e}_t$ & Message embedding    & 384 & MiniLM-L12-v2 sentence vector \\
+    $\mathbf{e}_t$ & Message embedding    & 384 & MiniLM-L12-v2~\cite{reimers2019} \\
     $s_t$          & Toxicity score       & 1   & Calibrated XLM-R score $\in[0,1]$ \\
     $\mathbf{h}_t$ & User history         & 3   & Warns, timeouts, effective infractions \\
     $\mathbf{q}_t$ & Server heat          & 2   & Rolling toxicity rate, action rate \\
@@ -364,30 +340,18 @@ where the scale and offset are:
 Calibration parameters are computed once from the training corpus and applied identically
 during training and production inference to prevent train--test distribution shift.
 
-\subsection{Multilingual Threat Detection}
+\subsection{Multilingual Threat Detection and Gaming Slang Override}
 
-For five threat categories (stalking, violence, death wishes, swatting/doxxing, and mass
-violence) we maintain a compiled set of language-aware regex patterns covering all 13
-languages. Patterns for East Asian languages (Japanese, Chinese) use character-based
-matching without word boundaries; Semitic languages (Arabic, Hebrew) are handled with
-right-to-left safe patterns; Indic and Hinglish patterns cover both native script and
-Latin transliteration. When a pattern fires and the calibrated toxicity score is below
-0.80, the score is overridden to $\max(\hat{s}, 0.85)$, ensuring the agent always has
-the option of \textsc{Ban} for explicit threats.
-
-A known limitation is that death-threat patterns for Russian, Ukrainian, Spanish, and
-Hindi originally assumed verb-before-object order, missing sentences with the natural
-SOV (subject-object-verb) structure common in those languages. This was corrected by
-adding reverse-order pattern variants, raising threat coverage from 9/13 to 13/13
-languages.
-
-\subsection{Benign Gaming Vocabulary Override}
-
-The XLM-R classifier produces false positives on common gaming slang (e.g., ``gg wp'',
-``nice shot'', ``well played''). We maintain a compiled regex of known-benign gaming
-phrases; any message matching this list is assigned $\hat{s} = 0$ before the classifier
-is called, avoiding unnecessary API invocations and eliminating a class of systematic
-false positives.
+For five threat categories (stalking, violence, death wishes, swatting/doxxing, mass
+violence) we maintain language-aware regex patterns across all 13 languages, with
+character-based matching for Japanese/Chinese, RTL-safe patterns for Arabic/Hebrew, and
+both native-script and Latin transliteration variants for Indic and Hinglish. When a
+pattern fires and $\hat{s} < 0.80$, the score is overridden to $\max(\hat{s}, 0.85)$,
+ensuring \textsc{Ban} remains available for explicit threats. Death-threat patterns
+originally assumed verb-before-object order; adding SOV reverse-order variants for
+Russian, Ukrainian, Spanish, and Hindi raised threat coverage from 9/13 to 13/13.
+Symmetrically, a compiled regex of common gaming slang (``gg wp'', ``nice shot'') sets
+$\hat{s} = 0$ pre-classifier, eliminating a known class of false positives.
 
 
 %=== V. TRAINING METHODOLOGY ====================================================
@@ -458,143 +422,52 @@ $R_t = R^{\text{base}}_t + R^{\text{esc}}_t$.
 
 \subsection{Wrapper Stack}
 
-The environment is wrapped with four layers. \textbf{Wrapper order is critical}: all penalty
-wrappers must operate in raw reward space, and the scaling wrapper must be applied last to
-compress the final sum into $[-1,1]$. Placing the scaler first would allow subsequent
-penalties to push the total to $-4.0$, breaking PPO's advantage normalization.
-
-\textbf{(1) LagrangianPenaltyWrapper} implements~(\ref{eq:lambda_update}) with
-$\lambda_{\text{init}} = 0.3$, $\alpha_\lambda = 0.01$, false-positive threshold
-$d = 0.05$. A false positive is defined as any punitive action ($a_t > 0$) taken when
-$s_t < 0.30$. The multiplier is updated every 500 steps over a 1,000-step sliding window.
-
-\textbf{(2) DisparateImpactWrapper} monitors per-language \textsc{Ban} rates over a
-rolling 2,000-step window. When language $l$ satisfies
-
-\begin{equation}\label{eq:di_condition}
-  \hat{\rho}_l > \tau^{\text{DI}} \cdot \hat{\rho}_{\text{all}}, \quad \tau^{\text{DI}} = 1.5
-\end{equation}
-
-and the current action for language $l$ is \textsc{Ban}, an additional $-2.0$ penalty
-is applied. The set of over-threshold languages is refreshed every 200 steps to avoid
-per-step $O(n)$ scans over the full action log.
-
-\textbf{(3) MetricsTrackingWrapper} records per-episode false-positive rate, false-negative
-rate, and cumulative reward for use by the evaluation callback.
-
-\textbf{(4) RewardScalingWrapper} applies~(\ref{eq:reward_clip}) \emph{after} all penalty
-terms have been computed, ensuring the final reward seen by PPO is bounded in $[-1,1]$.
+The environment is wrapped with four layers, applied in a fixed order so that all penalty
+terms accumulate in raw reward space before the final scaling step bounds the total in
+$[-1,1]$ (placing the scaler first would let subsequent penalties push the total to $-4.0$
+and break PPO's advantage normalization). The \textbf{LagrangianPenaltyWrapper}
+implements~(\ref{eq:lambda_update}) with $\lambda_{\text{init}}=0.3$,
+$\alpha_\lambda=0.01$, false-positive threshold $d=0.05$ over a 1{,}000-step window
+(updated every 500 steps); a false positive is any punitive action with $s_t < 0.30$. The
+\textbf{DisparateImpactWrapper} monitors per-language \textsc{Ban} rates over a rolling
+2{,}000-step window and applies a $-2.0$ penalty when language $l$ satisfies
+$\hat{\rho}_l > \tau^{\text{DI}} \cdot \hat{\rho}_{\text{all}}$ with $\tau^{\text{DI}}=1.5$
+and the current action is \textsc{Ban}; the over-threshold set is refreshed every 200
+steps. A \textbf{MetricsTrackingWrapper} records per-episode FP/FN rates and reward, and
+the \textbf{RewardScalingWrapper} applies~(\ref{eq:reward_clip}) last.
 
 \subsection{Train/Test Split and Constraint-Aware Checkpoint Selection}
 
-To prevent evaluation on training data, episodes are split 80/20 into
-\texttt{episodes\_train.json} and \texttt{episodes\_test.json} before training begins.
-The training environment samples only from the training split; evaluation uses the held-out
-test split exclusively.
-
-Standard evaluation callbacks save the best model based on mean reward alone. For a CMDP,
-a model with reward 0.9 but FP rate 0.08 is strictly worse than one with reward 0.85 and
-FP rate 0.02. We use a constraint-aware checkpoint selector:
-
-\begin{equation}\label{eq:penalized_score}
-  \text{score} =
-  \begin{cases}
-    \bar{R} & \text{if } \overline{\text{FP}} \leq 0.05 \\
-    \bar{R} - 10 \cdot (\overline{\text{FP}} - 0.05) & \text{otherwise}
-  \end{cases}
-\end{equation}
-
-Only the checkpoint with the highest penalized score is saved as the production model.
+Episodes are split 80/20 into train/test before training begins; evaluation uses the
+held-out test split exclusively. For a CMDP, mean reward alone is the wrong selection
+criterion---a model with reward $0.9$ and FP rate $0.08$ is strictly worse than one with
+reward $0.85$ and FP rate $0.02$. We therefore use a constraint-aware score
+$\bar{R} - 10\cdot\max(0, \overline{\text{FP}} - 0.05)$, saving only the highest-scoring
+checkpoint as the production model.
 
 \subsection{Monte-Carlo Confidence Estimation}
 
 Single-pass deterministic inference produces bimodal confidence distributions that
-overcommit on borderline content~\cite{liu2025meta}. For messages with calibrated
-toxicity $s_t \in [0.30, 0.70]$, we run the policy $N = 4$ times with stochastic
-sampling and return the majority-vote action:
-
-\begin{equation}
-  a_t = \operatorname{mode}\!\left\{\tilde{a}^{(i)} \sim \pi_\theta(\cdot \mid \mathbf{o}_t, \mathbf{m}_t)
-        \;\Big|\; i = 1,\ldots,N\right\}
-\end{equation}
-
-For clear-cut cases ($s_t < 0.30$ or $s_t > 0.70$), deterministic inference is used.
-Ties are broken toward the lower-severity action, erring on the side of caution.
-
-Algorithm~\ref{alg:training} summarizes the full training procedure.
-
-\begin{algorithm}[!t]
-\caption{FairMod Two-Stage Training Procedure}
-\label{alg:training}
-\begin{algorithmic}[1]
-\REQUIRE Episodes $\mathcal{E}_{\text{train}}, \mathcal{E}_{\text{test}}$, embeddings
-         $\mathbf{E}$, toxicity scores $\mathbf{s}$, calibration $\Phi$
-\STATE \textit{// Stage 1: Behavior Cloning}
-\FOR{each episode $\varepsilon \in \mathcal{E}_{\text{train}}$}
-  \FOR{each step $t$ in $\varepsilon$}
-    \STATE Compute oracle action $a^*_t \leftarrow f(s_t, e_t, \tau_u)$
-    \STATE Store $(\mathbf{o}_t, a^*_t, \mathbf{m}_t)$
-  \ENDFOR
-\ENDFOR
-\STATE Train $\pi_\theta$ via NLL loss on collected triples for 30 epochs
-\STATE Save BC init: $\theta_{\text{BC}} \leftarrow \theta$
-\STATE \textit{// Stage 2: RL Fine-Tuning}
-\STATE Load $\theta \leftarrow \theta_{\text{BC}}$;
-       $\lambda \leftarrow 0.3$; $\hat{\rho}_l \leftarrow 0\;\forall l$
-\FOR{each rollout of $n_{\text{steps}} = 4096$ transitions}
-  \FOR{each environment step $t$}
-    \STATE Sample episode $\varepsilon \sim \mathcal{E}_{\text{train}}$ on reset
-    \STATE Observe $\mathbf{o}_t$; mask $\mathbf{m}_t$ via (\ref{eq:mask_ban})--(\ref{eq:mask_high_tox})
-    \STATE Sample $a_t \sim \pi_\theta(\cdot \mid \mathbf{o}_t, \mathbf{m}_t)$
-    \STATE $R_t \leftarrow R^{\text{base}}_t + R^{\text{esc}}_t$ via (\ref{eq:base_reward}), (\ref{eq:esc_reward})
-    \STATE Apply Lagrangian: $\tilde{R}_t \leftarrow R_t - \lambda C_t$
-    \STATE Apply DI penalty if (\ref{eq:di_condition}) holds
-    \STATE Scale: $\tilde{R}_t \leftarrow \operatorname{clip}(\tilde{R}_t / 5, -1, 1)$
-    \STATE Update user ledger; compute $e_t$ via (\ref{eq:decay})
-  \ENDFOR
-  \STATE Update $\pi_\theta$ via PPO surrogate; update $\lambda$ and $\hat{\rho}_l$
-  \STATE Evaluate on $\mathcal{E}_{\text{test}}$; save if (\ref{eq:penalized_score}) improves
-\ENDFOR
-\end{algorithmic}
-\end{algorithm}
+overcommit on borderline content~\cite{liu2025meta}. For calibrated toxicity
+$s_t \in [0.30, 0.70]$, we run the policy $N=4$ times under stochastic sampling and
+return the majority-vote action $a_t = \operatorname{mode}\{\tilde{a}^{(i)}
+\sim \pi_\theta(\cdot \mid \mathbf{o}_t, \mathbf{m}_t)\}_{i=1}^N$, breaking ties toward
+the lower-severity action. Outside this range, deterministic inference is used.
 
 \subsection{Synthetic Data Generation}
 
-Training episodes are generated by a three-stage pipeline. First, real multilingual
-toxicity data is sourced from the Jigsaw Toxic Comment datasets \cite{jigsaw} and
-the Hugging Face \texttt{textdetox/multilingual\_toxicity\_dataset} \cite{dementieva2023},
-producing a balanced corpus of 5,000 toxic and 5,000 benign examples per language.
-Second, the corpus is semantically clustered using $k$-means on MiniLM embeddings per
-language, providing diverse seed examples. Third, DeepSeek~V3.1 \cite{deepseek2024}
-is prompted via the Baseten API to generate realistic multi-user Discord threads seeded
-by these examples. Thread types follow the distribution in Table~\ref{tab:thread_types}.
-
-\begin{table}[!t]
-  \renewcommand{\arraystretch}{1.3}
-  \caption{Synthetic Thread Type Distribution}
-  \label{tab:thread_types}
-  \centering
-  \begin{tabular}{lcc}
-    \toprule
-    Thread Type & Proportion & Toxicity Characteristics \\
-    \midrule
-    \texttt{toxic}      & 30\% & 3--5 genuinely toxic messages \\
-    \texttt{escalating} & 20\% & Benign onset, toxic conclusion \\
-    \texttt{mild}       & 15\% & Borderline frustration (tox $\approx$ 0.2--0.55) \\
-    \texttt{subtle}     & 10\% & Passive aggression, sarcasm \\
-    \texttt{benign}     & 25\% & No toxic content \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-For Hinglish threads a specialized system prompt enforces Hindi--English code-switching
-(e.g., \textit{``yaar gg that round was fun''}, \textit{``bhai theek se khelo na''}).
-The base distribution for Hinglish skews toward benign and mild content (20\% benign,
-30\% mild) to counteract the over-representation of extreme toxicity in Hinglish sources.
-After episode mapping and preprocessing, the final dataset comprises 595 episodes and
-8,016 moderation steps across 14 language categories (Table~\ref{tab:lang_dist}).
-An 80/20 train/test split separates episodes used for training from those reserved
-for all reported evaluation metrics.
+Training episodes are generated in three stages: (i) sourcing a balanced corpus of
+$5{,}000$ toxic and $5{,}000$ benign examples per language from the Jigsaw
+\cite{jigsaw} and Hugging Face \texttt{textdetox/multilingual\_toxicity\_dataset}
+\cite{dementieva2023} datasets; (ii) $k$-means clustering on MiniLM embeddings to obtain
+diverse per-language seeds; and (iii) prompting DeepSeek~V3.1 \cite{deepseek2024} via
+the Baseten API to generate multi-user Discord threads from those seeds. Thread types
+follow a fixed mix---30\% toxic (3--5 toxic messages), 20\% escalating (benign onset,
+toxic conclusion), 15\% mild ($s \approx 0.2$--$0.55$), 10\% subtle (sarcasm/passive
+aggression), and 25\% benign---with the Hinglish split skewed to 20\%/30\%
+benign/mild via a code-switching system prompt to counteract source over-representation
+of extreme toxicity. The final dataset comprises 595 episodes (8,016 steps) across 14
+language categories (Table~\ref{tab:lang_dist}) under an 80/20 train/test split.
 
 \begin{table}[!t]
   \renewcommand{\arraystretch}{1.3}
@@ -695,25 +568,18 @@ less than over-escalation.
 
 \subsection{Procedural Scenario Testing}
 
-We evaluate three designed scenarios to verify that the learned policy correctly
-implements the intended behavioral contracts.
-
-\textbf{Scenario 1---Escalation:} A user sends 10 messages of increasing toxicity.
-The agent produces the full graduated ladder: \textsc{Allow} $\to$ \textsc{Allow} $\to$
-\textsc{Allow} $\to$ \textsc{Warn} $\to$ \textsc{Delete} $\to$ \textsc{Timeout}
-$\to$ \textsc{Timeout} $\to$ \textsc{Timeout} $\to$ \textsc{Ban}, respecting all
-action masking constraints (BAN requires prior timeouts, TIMEOUT requires prior infractions).
-
-\textbf{Scenario 2---Sustained Troll:} A user alternates borderline-toxic and benign
-messages over 10 steps, never triggering a single high-severity event. The agent
-escalates through recidivism: \textsc{Delete} $\to$ \textsc{Allow} $\to$
-\textsc{Delete} $\to$ \textsc{Timeout} $\to$ \textsc{Timeout} $\to$ \textsc{Timeout},
-demonstrating that the policy uses cumulative history rather than per-message severity alone.
-
-\textbf{Scenario 3---Rehabilitation:} After an initial \textsc{Delete}, a user sends 12
-clean messages. Once the clean-streak threshold $\tau_{\text{cd}} = 5$ is exceeded, the
-effective infraction count $e_t$ decays to zero by step~7, and a subsequent mild gripe
-at step~13 produces \textsc{Allow} rather than a punitive action.
+Three designed scenarios verify the learned policy's behavioral contracts.
+\textbf{Escalation:} 10 messages of monotonically increasing toxicity produce the full
+graduated ladder \textsc{Allow}$^3 \to$ \textsc{Warn} $\to$ \textsc{Delete} $\to$
+\textsc{Timeout}$^3 \to$ \textsc{Ban}, respecting all masking preconditions.
+\textbf{Sustained troll:} a user alternating borderline-toxic and benign messages over
+10 steps---never triggering a single high-severity event---is correctly escalated through
+recidivism (\textsc{Delete} $\to$ \textsc{Allow} $\to$ \textsc{Delete} $\to$
+\textsc{Timeout}$^3$), confirming the policy uses cumulative history rather than
+per-message severity alone. \textbf{Rehabilitation:} after an initial \textsc{Delete},
+12 clean messages drive $e_t \to 0$ by step~7 (the clean-streak threshold
+$\tau_{\text{cd}} = 5$ being crossed at step~6), and a subsequent mild gripe at step~13
+produces \textsc{Allow} rather than re-punishment.
 
 \subsection{Cross-Lingual Parity}
 
@@ -749,22 +615,16 @@ does not produce.
 
 \subsection{Fairness Audit}
 
-Table~\ref{tab:fairness} reports per-language \textsc{Ban} rates from the held-out
-test evaluation. The overall \textsc{Ban} rate is 0.066 (526 out of 8,016 steps).
-Of 14 language categories, 12 fall within the $1.5\times$ parity threshold,
-including Chinese ($1.49\times$, borderline).
-Two languages exhibit residual disparate impact: Hindi ($1.92\times$) and Hinglish
-($1.64\times$). The cross-lingual parity
-diagnostic (Table~\ref{tab:parity}) reveals the root cause: the XLM-R classifier
-systematically over-scores Hindi by $+0.095$ relative to English. This raw classifier
-bias compounds through the escalation ladder---Hindi users accumulate infractions
-faster, triggering more \textsc{Timeout} and \textsc{Ban} actions. Per-language affine
-calibration and the DisparateImpactWrapper reduce but cannot eliminate this effect;
-extensive experimentation with aggressive calibration offsets ($-0.06$ to $-0.12$)
-degraded overall accuracy without meaningfully reducing Hindi BAN disparity, confirming
-that the bias is structural to the classifier rather than correctable through
-post-hoc calibration. Replacing or fine-tuning the upstream toxicity classifier
-is the recommended remediation.
+Table~\ref{tab:fairness} reports per-language \textsc{Ban} rates on the held-out test
+split (overall rate $0.066$). Twelve of fourteen categories pass the $1.5\times$ parity
+threshold, including Chinese ($1.49\times$, borderline). Hindi ($1.92\times$) and
+Hinglish ($1.64\times$) exhibit residual disparate impact traced via
+Table~\ref{tab:parity} to the upstream classifier: XLM-R systematically over-scores
+Hindi by $+0.095$ relative to English, and this bias compounds through the escalation
+ladder. Aggressive calibration offsets ($-0.06$ to $-0.12$) degraded overall accuracy
+without meaningfully reducing the disparity, confirming the bias is structural rather
+than calibration-correctable; classifier replacement or fine-tuning is the recommended
+remediation~\cite{feldman2015}.
 
 \begin{table}[!t]
   \renewcommand{\arraystretch}{1.3}
@@ -799,36 +659,22 @@ is the recommended remediation.
 
 We have presented a CMDP-based multilingual content moderation system that learns
 graduated enforcement policies across 13 languages while satisfying dual fairness
-constraints. The key findings are: (1)~action masking is a practical and effective
-mechanism for embedding hard procedural constraints into a learned policy without
-requiring reward engineering to enforce ordering; (2)~two-stage BC$\to$RL training
-substantially improves convergence stability over RL-Only, consistent with findings
-in~\cite{liu2025meta}; (3)~Lagrangian multiplier methods combined with the
-DisparateImpactWrapper successfully constrain fairness for 12 of 14 language categories;
-(4)~per-language affine calibration meaningfully reduces scoring bias for most
-languages, but cannot compensate for structural over-scoring in the upstream classifier
-(Hindi at $+0.095$ vs.\ English), which compounds through the escalation ladder and
-produces residual disparate impact that is robust to calibration adjustments;
-(5)~the RL agent achieves 89--94\% accuracy on high-stakes enforcement actions
-(\textsc{Delete}, \textsc{Timeout}, \textsc{Ban}) that static baselines cannot perform
-at all, despite a lower overall accuracy that reflects conservative over-warning at
-the benign boundary; and (6)~the escalation-consistency reward and Monte-Carlo
-confidence estimation improve trajectory coherence and borderline decision quality
-respectively.
-
-The system is deployed as a production Discord bot with persistent SQLite user state,
-asynchronous inference, and a full audit trail---demonstrating that the approach is
-viable for real community moderation, not only research evaluation.
-
-Limitations include the relatively small training corpus (595 episodes), training
-variance inherent to PPO (accuracy ranges from 73--82\% across runs with identical
-hyperparameters), Hindi/Hinglish classifier bias that calibration cannot
-fully correct, and a conservative over-warning bias where $\sim$22\% of benign messages
-receive \textsc{Warn} rather than \textsc{Allow}. Future work will address these through
-fine-tuning or replacing the XLM-R classifier for Hindi and Chinese,
-disagreement-based episode reweighting~\cite{liu2025meta}, reward shaping to
-reduce over-warning, and extending the framework to multi-channel
-server graph representations.
+constraints. Three findings stand out. First, action masking is an effective mechanism
+for embedding procedural constraints into a learned policy without requiring reward
+engineering to enforce ordering, and two-stage BC$\to$RL training~\cite{liu2025meta}
+markedly improves convergence stability over RL-Only. Second, the RL agent achieves
+89--94\% accuracy on high-stakes enforcement (\textsc{Delete}, \textsc{Timeout},
+\textsc{Ban}), categories where static baselines score $\leq 4.5\%$, despite lower
+overall accuracy that reflects deliberate conservative over-warning at the benign
+boundary. Third, while Lagrangian methods plus the DisparateImpactWrapper constrain
+fairness for 12 of 14 language categories, per-language affine calibration cannot
+compensate for structural over-scoring in the upstream classifier (Hindi at $+0.095$
+vs.\ English), which compounds through the escalation ladder. The system is deployed
+as a production Discord bot with persistent SQLite state and a full audit trail.
+Limitations include the small training corpus (595 episodes), PPO training variance
+(73--82\% accuracy across seeds), and the Hindi/Hinglish bias above; future work
+includes classifier fine-tuning, disagreement-based reweighting~\cite{liu2025meta},
+and multi-channel server graph extensions.
 
 
 %=== REFERENCES =================================================================
