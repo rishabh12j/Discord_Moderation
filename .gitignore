@@ -43,5 +43,5 @@ Thumbs.db
 # Jupyter
 .ipynb_checkpoints/
 
-# Claude Code
+# Local agent/IDE caches
 .claude/
