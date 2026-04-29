@@ -85,7 +85,7 @@ def add_language_field(
         lang_dist[lang] += 1
 
     # Report
-    print(f"\n📊 Language tagging sources:")
+    print(f"\nLanguage tagging sources:")
     for src, count in sorted(lang_source.items(), key=lambda x: -x[1]):
         print(f"   {src:12s}: {count:5d} ({count/len(data)*100:.1f}%)")
 
@@ -97,7 +97,7 @@ def add_language_field(
     with open(output_file, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
 
-    print(f"\n✅ Saved {len(data)} entries with language field to {output_file}")
+    print(f"\nSaved {len(data)} entries with language field to {output_file}")
 
 
 if __name__ == "__main__":

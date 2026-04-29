@@ -42,7 +42,7 @@ class VectorizedSimulator:
         self.embeddings = np.load(f"{data_dir}/context_embeddings.npy")
         self.toxicity_scores = np.load(f"{data_dir}/toxicity_scores.npy")
 
-        print(f"✅ Vectorized simulator: {len(self.all_episodes)} episodes, "
+        print(f"Vectorized simulator: {len(self.all_episodes)} episodes, "
               f"N={n_parallel} parallel")
 
     def _make_env(self, ep_data):
@@ -207,7 +207,7 @@ class VectorizedSimulator:
 
         # Print report
         print(f"\n{'=' * 70}")
-        print(f"📊 VECTORIZED EVALUATION — {n_episodes} episodes, {total_steps} steps")
+        print(f"VECTORIZED EVALUATION — {n_episodes} episodes, {total_steps} steps")
         print(f"{'=' * 70}")
         print(f"   Throughput: {steps_per_sec:.0f} steps/sec ({elapsed:.1f}s total)")
         print(f"\n   Action Distribution:")

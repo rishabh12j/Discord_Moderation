@@ -25,9 +25,8 @@ from src.env.discord_env import DiscordEnv, LANG_TO_IDX, NUM_LANGUAGES
 ACTION_NAMES = ["ALLOW", "WARN", "DELETE", "TIMEOUT", "BAN"]
 
 
-# ═══════════════════════════════════════════════════════════════
 # BASELINE A: Keyword Regex Filter
-# ═══════════════════════════════════════════════════════════════
+
 
 TOXIC_KEYWORDS = re.compile(
     r"\b(idiot|stupid|garbage|trash|moron|loser|pathetic|useless|"
@@ -43,9 +42,8 @@ def baseline_keyword(text: str) -> int:
     return 0  # ALLOW
 
 
-# ═══════════════════════════════════════════════════════════════
 # BASELINE B: Static Threshold on XLM-R Score
-# ═══════════════════════════════════════════════════════════════
+
 
 def baseline_threshold(tox_score: float) -> int:
     """Baseline B: DELETE(2) if score > 0.80, WARN(1) if > 0.50, else ALLOW(0)."""
@@ -56,9 +54,8 @@ def baseline_threshold(tox_score: float) -> int:
     return 0  # ALLOW
 
 
-# ═══════════════════════════════════════════════════════════════
 # RL AGENT
-# ═══════════════════════════════════════════════════════════════
+
 
 class RLAgentEvaluator:
     def __init__(self, model_path: str = "data/models/best/best_model.zip"):
@@ -116,9 +113,8 @@ class RLAgentEvaluator:
         return action
 
 
-# ═══════════════════════════════════════════════════════════════
 # EVALUATION FRAMEWORK
-# ═══════════════════════════════════════════════════════════════
+
 
 def compute_best_action(tox, total_inf, timeouts):
     """Ground truth based on reward function logic."""
@@ -222,12 +218,11 @@ def run_baseline_comparison():
 
             total_steps += 1
 
-    # ═══════════════════════════════════════════════════════════
     # Day 31: BASELINE COMPARISON REPORT
-    # ═══════════════════════════════════════════════════════════
+
 
     print(f"\n{'=' * 70}")
-    print(f"📊 DAY 31 — BASELINE COMPARISON ({total_steps} steps)")
+    print(f"DAY 31 — BASELINE COMPARISON ({total_steps} steps)")
     print(f"{'=' * 70}")
 
     print(f"\n{'System':20s} {'Accuracy':>10s} {'FP Rate':>10s} {'FN Rate':>10s}")
@@ -248,12 +243,11 @@ def run_baseline_comparison():
         dist_str = "  ".join(f"{ACTION_NAMES[a]}={counts.get(a,0)}" for a in range(5))
         print(f"     {name:20s}: {dist_str}")
 
-    # ═══════════════════════════════════════════════════════════
     # Day 34: CONFUSION MATRIX
-    # ═══════════════════════════════════════════════════════════
+
 
     print(f"\n{'=' * 70}")
-    print(f"📊 DAY 34 — CONFUSION MATRICES (5×5)")
+    print(f"DAY 34 — CONFUSION MATRICES (5×5)")
     print(f"{'=' * 70}")
 
     for name in systems:
@@ -277,12 +271,11 @@ def run_baseline_comparison():
                 print()
         print(f"  (actual ↓)")
 
-    # ═══════════════════════════════════════════════════════════
     # Day 35: FAIRNESS AUDIT
-    # ═══════════════════════════════════════════════════════════
+
 
     print(f"\n{'=' * 70}")
-    print(f"📊 DAY 35 — FAIRNESS AUDIT (per-language BAN rates)")
+    print(f"DAY 35 — FAIRNESS AUDIT (per-language BAN rates)")
     print(f"{'=' * 70}")
 
     for name in systems:
@@ -311,16 +304,16 @@ def run_baseline_comparison():
             l_bans = la[lang].get(4, 0)
             l_rate = l_bans / max(l_total, 1)
             ratio = l_rate / max(overall_ban_rate, 1e-8)
-            flag = "⚠️  DISPARITY" if ratio > 1.5 and l_bans > 0 else "✅"
+            flag = "DISPARITY" if ratio > 1.5 and l_bans > 0 else ""
             if ratio > 1.5 and l_bans > 0:
                 disparity_found = True
             print(f"     {lang:12s} {l_total:10d} {l_bans:6d} {l_rate:10.4f} {ratio:8.2f} {flag}")
 
         if disparity_found:
-            print(f"\n     ❌ FAIRNESS AUDIT FAILED — disparate impact detected")
+            print(f"\n     FAIRNESS AUDIT FAILED — disparate impact detected")
             print(f"        Remediation: Retrain with higher λ initialization")
         else:
-            print(f"\n     ✅ FAIRNESS AUDIT PASSED — no language exceeds 1.5× baseline")
+            print(f"\n     FAIRNESS AUDIT PASSED — no language exceeds 1.5× baseline")
 
 
 if __name__ == "__main__":

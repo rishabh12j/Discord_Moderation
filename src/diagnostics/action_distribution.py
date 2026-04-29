@@ -44,7 +44,7 @@ def analyze_action_distribution(
     model = MaskablePPO.load(model_path)
 
     print("=" * 65)
-    print(f"📊 DIAGNOSTIC 2: ACTION DISTRIBUTION ({n_episodes} episodes)")
+    print(f"DIAGNOSTIC 2: ACTION DISTRIBUTION ({n_episodes} episodes)")
     print("=" * 65)
 
     # ── Counters ────────────────────────────────────────────────
@@ -113,14 +113,14 @@ def analyze_action_distribution(
 
     # ── Print Results ───────────────────────────────────────────
 
-    print(f"\n🎯 Overall Action Distribution ({total_steps} total steps)")
+    print(f"\nOverall Action Distribution ({total_steps} total steps)")
     for a in range(5):
         count = total_action_counts[a]
         pct = count / max(total_steps, 1) * 100
         bar = "█" * int(pct / 2)
         print(f"   {ACTION_NAMES[a]:8s}: {count:6d} ({pct:5.1f}%) {bar}")
 
-    print(f"\n📊 Actions by Toxicity Tier")
+    print(f"\nActions by Toxicity Tier")
     for tier_name, tier_data in tox_tiers.items():
         t = tier_data["total"]
         if t == 0:
@@ -133,7 +133,7 @@ def analyze_action_distribution(
             bar = "█" * int(pct / 2)
             print(f"      {ACTION_NAMES[a]:8s}: {count:5d} ({pct:5.1f}%) {bar}")
 
-    print(f"\n📈 Escalation Depth Per Episode")
+    print(f"\nEscalation Depth Per Episode")
     max_action_per_episode = np.array(max_action_per_episode)
     for a in range(5):
         count = (max_action_per_episode == a).sum()
@@ -164,12 +164,12 @@ def analyze_action_distribution(
         stuck_delete = sum(1 for chain in escalation_chains
                           if all(a == 2 for a, t in chain) and len(chain) >= 3)
         if stuck_delete > 0:
-            print(f"\n   ⚠️  {stuck_delete} chains where agent did DELETE 3+ times in a row")
+            print(f"\n   {stuck_delete} chains where agent did DELETE 3+ times in a row")
             print(f"      → This confirms the agent is 'stuck' on DELETE and not escalating to TIMEOUT")
 
     # ── Verdict ─────────────────────────────────────────────────
     print(f"\n{'=' * 65}")
-    print(f"🔍 DIAGNOSIS")
+    print(f"DIAGNOSIS")
     print(f"{'=' * 65}")
 
     issues = []
@@ -177,7 +177,7 @@ def analyze_action_distribution(
     timeout_pct = total_action_counts[3] / max(total_steps, 1) * 100
     if timeout_pct < 1.0:
         issues.append(
-            f"❌ TIMEOUT usage is {timeout_pct:.2f}% — agent almost never uses it.\n"
+            f"TIMEOUT usage is {timeout_pct:.2f}% — agent almost never uses it.\n"
             f"      → Either training data lacks episodes long enough for\n"
             f"        escalation, or the reward gap between DELETE and TIMEOUT\n"
             f"        is too small for PPO to differentiate."
@@ -186,7 +186,7 @@ def analyze_action_distribution(
     ban_pct = total_action_counts[4] / max(total_steps, 1) * 100
     if ban_pct < 0.5 and ban_episodes == 0:
         issues.append(
-            f"⚠️  BAN usage is {ban_pct:.2f}% — may be fine (ledger masks prevent premature bans)\n"
+            f"BAN usage is {ban_pct:.2f}% — may be fine (ledger masks prevent premature bans)\n"
             f"      but also check if agent ever reaches ban-eligible state."
         )
 
@@ -196,13 +196,13 @@ def analyze_action_distribution(
         delete_in_extreme = high_tier["actions"][2] / high_tier["total"] * 100
         if delete_in_extreme > 60:
             issues.append(
-                f"⚠️  DELETE accounts for {delete_in_extreme:.0f}% of extreme-tox actions.\n"
+                f"DELETE accounts for {delete_in_extreme:.0f}% of extreme-tox actions.\n"
                 f"      → Agent over-relies on DELETE even for very toxic content.\n"
                 f"        Should be escalating to TIMEOUT/BAN for repeat offenders."
             )
 
     if not issues:
-        print("   ✅ Action distribution looks healthy!")
+        print("   Action distribution looks healthy!")
     else:
         for issue in issues:
             print(f"\n   {issue}")

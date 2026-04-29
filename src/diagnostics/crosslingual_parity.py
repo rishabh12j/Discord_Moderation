@@ -260,7 +260,7 @@ def run_parity_test():
         return result["score"] if is_toxic else 1.0 - result["score"]
 
     print("=" * 80)
-    print("📊 CROSS-LINGUAL PARITY DIAGNOSTIC — RAW CLASSIFIER SCORES")
+    print("CROSS-LINGUAL PARITY DIAGNOSTIC — RAW CLASSIFIER SCORES")
     print("=" * 80)
     print()
 
@@ -297,7 +297,7 @@ def run_parity_test():
         })
 
         # Print per-sentence results
-        flag = "⚠️ " if spread > 0.30 else "   "
+        flag = "" if spread > 0.30 else "   "
         print(f"{flag}[{severity:>14s}] {sent_id}")
         print(f"     Mean={mean_score:.3f}  Std={std_score:.3f}  "
               f"Spread={spread:.3f}  (lowest: {min_lang}={scores[min_lang]:.3f}, "
@@ -312,7 +312,7 @@ def run_parity_test():
 
     # ── Per-language summary ────────────────────────────────────
     print("=" * 80)
-    print("📈 PER-LANGUAGE AVERAGE SCORES (across all test sentences)")
+    print("PER-LANGUAGE AVERAGE SCORES (across all test sentences)")
     print("=" * 80)
 
     en_mean = np.mean(all_scores["en"])
@@ -322,19 +322,19 @@ def run_parity_test():
         lmean = np.mean(all_scores[lang])
         lstd = np.std(all_scores[lang])
         diff = lmean - en_mean
-        flag = "⚠️" if abs(diff) > 0.10 else "  "
+        flag = "" if abs(diff) > 0.10 else "  "
         print(f"   {LANG_NAMES[lang]:12s} {lmean:8.3f} {lstd:8.3f} {diff:+10.3f} {flag}")
 
     # ── Disparity analysis ──────────────────────────────────────
     print(f"\n{'=' * 80}")
-    print("🔍 DISPARITY ANALYSIS")
+    print("DISPARITY ANALYSIS")
     print("=" * 80)
 
     # Which sentences have worst cross-lingual parity?
     worst = sorted(per_sentence, key=lambda x: x["spread"], reverse=True)
     print(f"\n  Sentences with worst cross-lingual spread (> 0.30 = problematic):")
     for s in worst[:5]:
-        icon = "❌" if s["spread"] > 0.30 else "⚠️" if s["spread"] > 0.15 else "✅"
+        icon = "" if s["spread"] > 0.30 else "" if s["spread"] > 0.15 else ""
         print(f"    {icon} {s['id']:25s} spread={s['spread']:.3f}  "
               f"(low: {s['min_lang']}={s['scores'][s['min_lang']]:.3f}, "
               f"high: {s['max_lang']}={s['scores'][s['max_lang']]:.3f})")
@@ -353,7 +353,7 @@ def run_parity_test():
 
     biases.sort(key=lambda x: x[1])
     for lang, bias in biases:
-        icon = "❌" if bias < -0.15 else "⚠️" if bias < -0.05 else "✅"
+        icon = "" if bias < -0.15 else "" if bias < -0.05 else ""
         direction = "UNDER-scored" if bias < -0.05 else "OVER-scored" if bias > 0.05 else "parity"
         print(f"    {icon} {LANG_NAMES[lang]:12s}: avg bias = {bias:+.3f} ({direction})")
 
@@ -364,12 +364,12 @@ def run_parity_test():
     severely_biased = [l for l, b in biases if abs(b) > 0.15]
 
     if avg_spread < 0.10 and not severely_biased:
-        print(f"    ✅ Cross-lingual parity is good (avg spread={avg_spread:.3f})")
+        print(f"    Cross-lingual parity is good (avg spread={avg_spread:.3f})")
     elif avg_spread < 0.20:
-        print(f"    ⚠️  Moderate disparity (avg spread={avg_spread:.3f})")
+        print(f"    Moderate disparity (avg spread={avg_spread:.3f})")
         print(f"       Per-language calibration recommended.")
     else:
-        print(f"    ❌ Severe disparity (avg spread={avg_spread:.3f}, max={max_spread:.3f})")
+        print(f"    Severe disparity (avg spread={avg_spread:.3f}, max={max_spread:.3f})")
         print(f"       Per-language calibration REQUIRED before production use.")
         if severely_biased:
             print(f"       Most affected: {', '.join(LANG_NAMES[l] for l in severely_biased)}")
@@ -383,11 +383,11 @@ def run_threat_detection_test():
     try:
         from src.agent.production_moderator import detect_threat
     except ImportError:
-        print("\n⚠️  Cannot import detect_threat — skipping threat detection test")
+        print("\nCannot import detect_threat — skipping threat detection test")
         return
 
     print(f"\n{'=' * 80}")
-    print("🔍 MULTILINGUAL THREAT DETECTION COVERAGE (Change 3)")
+    print("MULTILINGUAL THREAT DETECTION COVERAGE (Change 3)")
     print("=" * 80)
 
     threat_sentences = [s for s in TEST_SENTENCES if s["severity"] in ("threat", "extreme_threat")]
@@ -410,10 +410,10 @@ def run_threat_detection_test():
             else:
                 misses.append(lang)
 
-        print(f"     ✅ Detected ({len(hits)}/{len(LANGUAGES)}): "
+        print(f"     Detected ({len(hits)}/{len(LANGUAGES)}): "
               f"{', '.join(f'{LANG_NAMES[l]}[{c}]' for l, c in hits)}")
         if misses:
-            print(f"     ❌ MISSED: {', '.join(LANG_NAMES[l] for l in misses)}")
+            print(f"     MISSED: {', '.join(LANG_NAMES[l] for l in misses)}")
         else:
             print(f"     Perfect coverage!")
 
@@ -427,9 +427,9 @@ def run_threat_detection_test():
             is_threat, category = detect_threat(text)
             if is_threat:
                 fp_count += 1
-                print(f"     ⚠️  FALSE POSITIVE: {sent['id']} in {LANG_NAMES[lang]} → {category}")
+                print(f"     FALSE POSITIVE: {sent['id']} in {LANG_NAMES[lang]} → {category}")
     if fp_count == 0:
-        print(f"     ✅ No false positives on benign content")
+        print(f"     No false positives on benign content")
 
     coverage = total_hits / max(total_tests, 1) * 100
     print(f"\n  THREAT DETECTION COVERAGE: {total_hits}/{total_tests} ({coverage:.0f}%)")
@@ -445,12 +445,12 @@ def run_production_parity_test():
     try:
         from src.agent.production_moderator import ProductionModerator
     except Exception as e:
-        print(f"\n⚠️  Cannot load production moderator: {e}")
+        print(f"\nCannot load production moderator: {e}")
         print(f"    Skipping Phase 2. Run Phase 1 results above for baseline.")
         return
 
     print(f"\n\n{'=' * 80}")
-    print("📊 CROSS-LINGUAL PARITY — PRODUCTION DECISIONS")
+    print("CROSS-LINGUAL PARITY — PRODUCTION DECISIONS")
     print("=" * 80)
 
     moderator = ProductionModerator()
@@ -475,7 +475,7 @@ def run_production_parity_test():
 
         unique_decisions = set(decisions.values())
         consistent = len(unique_decisions) == 1
-        icon = "✅" if consistent else "❌"
+        icon = "" if consistent else ""
         consistency_results.append(consistent)
 
         # Threat detection summary for threat test cases
@@ -491,7 +491,7 @@ def run_production_parity_test():
             for lang in LANGUAGES:
                 if decisions[lang] != decisions["en"]:
                     t_flag = f" THREAT:{threats[lang]}" if threats[lang] else ""
-                    print(f"     ⚠️  {LANG_NAMES[lang]:12s}: {decisions[lang]:8s} "
+                    print(f"     {LANG_NAMES[lang]:12s}: {decisions[lang]:8s} "
                           f"(tox={tox_scores[lang]:.3f}{t_flag}) vs English: {decisions['en']} "
                           f"(tox={tox_scores['en']:.3f})")
 
@@ -499,21 +499,21 @@ def run_production_parity_test():
         if severity in ("threat", "extreme_threat"):
             missed = [l for l in LANGUAGES if threats[l] is None]
             if missed:
-                print(f"     🔍 Threat NOT detected in: {', '.join(LANG_NAMES[l] for l in missed)}")
+                print(f"     Threat NOT detected in: {', '.join(LANG_NAMES[l] for l in missed)}")
             else:
-                print(f"     🔍 Threat detected in ALL languages ✅")
+                print(f"     Threat detected in ALL languages ")
 
     # Summary
     n_consistent = sum(consistency_results)
     n_total = len(consistency_results)
     print(f"\n{'=' * 80}")
-    print(f"📈 SUMMARY: {n_consistent}/{n_total} test cases have consistent decisions across all languages")
+    print(f"SUMMARY: {n_consistent}/{n_total} test cases have consistent decisions across all languages")
     if n_consistent == n_total:
-        print(f"   ✅ Perfect cross-lingual parity!")
+        print(f"   Perfect cross-lingual parity!")
     elif n_consistent >= n_total * 0.7:
-        print(f"   ⚠️  Good progress — {n_total - n_consistent} cases still diverge")
+        print(f"   Good progress — {n_total - n_consistent} cases still diverge")
     else:
-        print(f"   ❌ Significant parity gaps remain — {n_total - n_consistent} cases diverge")
+        print(f"   Significant parity gaps remain — {n_total - n_consistent} cases diverge")
 
 
 if __name__ == "__main__":

@@ -1,12 +1,4 @@
-"""
-Discord bot wrapper for ProductionModerator.
-
-Loads credentials from .env at the project root, listens to a single test
-channel in a single guild, and translates moderator decisions into Discord
-actions (warn reply, message delete, member timeout, member ban).
-
-Run: python -m src.agent.discord_bot
-"""
+# Discord bot wrapper around ProductionModerator. Reads .env for token + ids.
 import os
 import asyncio
 from datetime import timedelta
@@ -90,14 +82,14 @@ async def on_message(message: discord.Message):
             return
         if decision == "WARN":
             await message.reply(
-                f"⚠️ {message.author.mention} this message has been flagged. "
+                f"{message.author.mention} this message has been flagged. "
                 f"Please keep the channel respectful.",
                 mention_author=False,
             )
         elif decision == "DELETE":
             await message.delete()
             await message.channel.send(
-                f"🗑️ A message from {message.author.mention} was removed for violating community guidelines."
+                f"A message from {message.author.mention} was removed for violating community guidelines."
             )
         elif decision == "TIMEOUT":
             await message.delete()
@@ -106,7 +98,7 @@ async def on_message(message: discord.Message):
                 reason=f"Auto-moderation: repeated infractions (tox={tox})",
             )
             await message.channel.send(
-                f"⏳ {message.author.mention} has been timed out for "
+                f"{message.author.mention} has been timed out for "
                 f"{int(TIMEOUT_DURATION.total_seconds() // 60)} minutes."
             )
         elif decision == "BAN":
@@ -117,7 +109,7 @@ async def on_message(message: discord.Message):
                 delete_message_seconds=0,
             )
             await message.channel.send(
-                f"⛔ {message.author} has been banned by the moderation agent."
+                f"{message.author} has been banned by the moderation agent."
             )
         elif decision == "REJECTED":
             await message.delete()

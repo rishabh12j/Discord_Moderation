@@ -27,7 +27,7 @@ from src.agent.production_moderator import ProductionModerator
 
 ACTION_ICONS = {
     "ALLOW": "🟢", "WARN": "🟡", "DELETE": "🟠",
-    "TIMEOUT": "🔴", "BAN": "⛔", "REJECTED": "🚫",
+    "TIMEOUT": "🔴", "BAN": "", "REJECTED": "🚫",
 }
 
 
@@ -43,9 +43,8 @@ def print_step(i, msg, result, desc=""):
           f"inf={result['total_infractions']:.0f}  eff_inf={eff}  clean={clean}")
 
 
-# ═══════════════════════════════════════════════════════════════
 # SCENARIO 1: ESCALATION — toxicity gradually increasing
-# ═══════════════════════════════════════════════════════════════
+
 
 def scenario_escalation(moderator: ProductionModerator):
     user_id = "escalation_user"
@@ -65,7 +64,7 @@ def scenario_escalation(moderator: ProductionModerator):
     ]
 
     print("=" * 70)
-    print("🧪 SCENARIO 1: ESCALATION (gradual toxicity increase)")
+    print("SCENARIO 1: ESCALATION (gradual toxicity increase)")
     print("=" * 70)
     print("Expected: ALLOW early → WARN as toxicity rises → DELETE → TIMEOUT → BAN")
     print()
@@ -75,7 +74,7 @@ def scenario_escalation(moderator: ProductionModerator):
         print_step(i, msg, result, desc)
 
     profile = moderator.get_user_profile(user_id)
-    print(f"\n  📋 Final: {profile}")
+    print(f"\n  Final: {profile}")
 
     # Evaluate
     total_inf = profile.get("total_infractions", 0)
@@ -83,17 +82,16 @@ def scenario_escalation(moderator: ProductionModerator):
     is_banned = user_id in moderator.banned_users
 
     if is_banned:
-        print("  ✅ Full escalation → BAN reached")
+        print("  Full escalation → BAN reached")
     elif timeouts >= 1:
-        print(f"  ⚠️  Reached TIMEOUT but not BAN (timeouts={timeouts})")
+        print(f"  Reached TIMEOUT but not BAN (timeouts={timeouts})")
     else:
-        print("  ❌ Insufficient escalation — never reached TIMEOUT")
+        print("  Insufficient escalation — never reached TIMEOUT")
     print()
 
 
-# ═══════════════════════════════════════════════════════════════
 # SCENARIO 2: SUSTAINED TROLL — persistent moderate toxicity
-# ═══════════════════════════════════════════════════════════════
+
 
 def scenario_sustained_troll(moderator: ProductionModerator):
     user_id = "sustained_troll"
@@ -113,7 +111,7 @@ def scenario_sustained_troll(moderator: ProductionModerator):
     ]
 
     print("=" * 70)
-    print("🧪 SCENARIO 2: SUSTAINED TROLL (constant moderate toxicity)")
+    print("SCENARIO 2: SUSTAINED TROLL (constant moderate toxicity)")
     print("=" * 70)
     print("Expected: WARN → DELETE → TIMEOUT through recidivism (not severity)")
     print()
@@ -123,19 +121,18 @@ def scenario_sustained_troll(moderator: ProductionModerator):
         print_step(i, msg, result, desc)
 
     profile = moderator.get_user_profile(user_id)
-    print(f"\n  📋 Final: {profile}")
+    print(f"\n  Final: {profile}")
 
     timeouts = profile.get("timeouts", 0)
     if timeouts >= 1:
-        print("  ✅ Recidivism triggered TIMEOUT — agent detects sustained trolling")
+        print("  Recidivism triggered TIMEOUT — agent detects sustained trolling")
     else:
-        print("  ❌ Never reached TIMEOUT — agent not detecting sustained pattern")
+        print("  Never reached TIMEOUT — agent not detecting sustained pattern")
     print()
 
 
-# ═══════════════════════════════════════════════════════════════
 # SCENARIO 3: REHABILITATION — one offense then clean behavior
-# ═══════════════════════════════════════════════════════════════
+
 
 def scenario_rehabilitation(moderator: ProductionModerator):
     user_id = "rehab_user"
@@ -163,7 +160,7 @@ def scenario_rehabilitation(moderator: ProductionModerator):
     ]
 
     print("=" * 70)
-    print("🧪 SCENARIO 3: REHABILITATION (offense + 10 clean messages)")
+    print("SCENARIO 3: REHABILITATION (offense + 10 clean messages)")
     print("=" * 70)
     print("Expected: WARN on offense → ALLOW through recovery →")
     print("          effective infractions decay → mild relapse treated leniently")
@@ -178,26 +175,24 @@ def scenario_rehabilitation(moderator: ProductionModerator):
             eff = result.get("effective_infractions", "?")
             clean = result.get("clean_streak", 0)
             if clean == 5:
-                print(f"          💡 Cool-down threshold reached! Decay begins.")
+                print(f"          Cool-down threshold reached! Decay begins.")
             elif clean > 5 and isinstance(eff, (int, float)) and eff < 1:
-                print(f"          💡 Fully rehabilitated (eff_inf < 1)")
+                print(f"          Fully rehabilitated (eff_inf < 1)")
 
     profile = moderator.get_user_profile(user_id)
-    print(f"\n  📋 Final: {profile}")
+    print(f"\n  Final: {profile}")
 
     status = profile.get("status", "")
     if status == "rehabilitated":
-        print("  ✅ User successfully rehabilitated — ledger decay works!")
+        print("  User successfully rehabilitated — ledger decay works!")
     elif profile.get("effective_infractions", 99) < 1:
-        print("  ✅ Effective infractions decayed below 1")
+        print("  Effective infractions decayed below 1")
     else:
-        print(f"  ⚠️  User status: {status} (eff_inf={profile.get('effective_infractions', '?')})")
+        print(f"  User status: {status} (eff_inf={profile.get('effective_infractions', '?')})")
 
     # Check: was the final mild relapse treated as a first offense?
     print()
 
-
-# ═══════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
     # Each scenario gets its own moderator instance for isolation

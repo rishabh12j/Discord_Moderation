@@ -11,7 +11,7 @@ from collections import Counter
 # ── Baseten client — Model APIs endpoint ────────────────────
 client = OpenAI(
     api_key=os.environ["BASETEN_API_KEY"],
-    base_url="https://inference.baseten.co/v1",  # ✅ FIXED
+    base_url="https://inference.baseten.co/v1",  # FIXED
 )
 MODEL = "deepseek-ai/DeepSeek-V3.1"  # exact Baseten model slug
 
@@ -191,7 +191,7 @@ def generate_causal_threads(
     threads = []
     failed = 0
 
-    print(f"\n🚀 Generating {len(plan)} threads using {MODEL}...")
+    print(f"\nGenerating {len(plan)} threads using {MODEL}...")
     print(f"   Distribution: toxic=30%, escalating=20%, subtle=15%, benign=35%\n")
 
     for thread_type, lang, is_toxic_seed in tqdm(plan):
@@ -208,9 +208,9 @@ def generate_causal_threads(
             time.sleep(0.5)
 
     # ── Stats ─────────────────────────────────────────────────
-    print(f"\n✅ Generated {len(threads)} valid threads ({failed} failed/rejected)")
+    print(f"\nGenerated {len(threads)} valid threads ({failed} failed/rejected)")
     counts = Counter(t.get("thread_type", "unknown") for t in threads)
-    print("\n📊 Thread type breakdown:")
+    print("\nThread type breakdown:")
     for t_type, count in sorted(counts.items()):
         print(f"   {t_type:15s}: {count:4d} ({count/max(len(threads),1)*100:.1f}%)")
 
@@ -328,7 +328,7 @@ def generate_supplement_threads(
             time.sleep(0.5)
 
     # ── Stats ─────────────────────────────────────────────────
-    print(f"\n✅ Generated {len(new_threads)} new threads ({failed} failed/rejected)")
+    print(f"\nGenerated {len(new_threads)} new threads ({failed} failed/rejected)")
     counts = Counter(t.get("thread_type") for t in new_threads)
     print("   Type breakdown:", dict(sorted(counts.items())))
     lang_counts = Counter(t.get("language") for t in new_threads)

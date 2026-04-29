@@ -43,7 +43,7 @@ def split_episodes(
     rng = random.Random(seed)
     train_eps, test_eps = [], []
 
-    print("\n📊 Stratified split:")
+    print("\nStratified split:")
     print(f"   {'Type':15s} {'Total':>6s} {'Train':>6s} {'Test':>6s}")
     print(f"   {'─'*36}")
 
@@ -67,11 +67,11 @@ def split_episodes(
     # Save
     with open(train_file, "w", encoding="utf-8") as f:
         json.dump(train_eps, f, indent=2, ensure_ascii=False)
-    print(f"\n✅ Saved {len(train_eps)} train episodes → {train_file}")
+    print(f"\nSaved {len(train_eps)} train episodes → {train_file}")
 
     with open(test_file, "w", encoding="utf-8") as f:
         json.dump(test_eps, f, indent=2, ensure_ascii=False)
-    print(f"✅ Saved {len(test_eps)} test  episodes → {test_file}")
+    print(f"Saved {len(test_eps)} test  episodes → {test_file}")
 
 
 if __name__ == "__main__":

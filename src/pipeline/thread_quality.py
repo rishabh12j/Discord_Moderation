@@ -109,9 +109,9 @@ def assess_thread_quality(
     
     # Print summary
     print(f"\n{'='*60}")
-    print("📊 Thread Quality Assessment")
+    print("Thread Quality Assessment")
     print(f"{'='*60}")
-    print(f"\n📈 Summary:")
+    print(f"\nSummary:")
     print(f"   Total Threads: {total_threads}")
     print(f"   Total Messages: {total_messages}")
     print(f"   Unique Messages: {len(unique_texts)}")
@@ -126,12 +126,12 @@ def assess_thread_quality(
     for lang, count in sorted(language_dist.items(), key=lambda x: -x[1])[:10]:
         print(f"   {lang}: {count} threads")
     
-    print(f"\n⚠️  Most Repeated Texts:")
+    print(f"\nMost Repeated Texts:")
     for i, (text, count) in enumerate(most_common_texts[:5], 1):
         preview = text[:80] + "..." if len(text) > 80 else text
         print(f"   {i}. [{count}x] {preview}")
     
-    print(f"\n✅ Full report saved to: {output_file}")
+    print(f"\nFull report saved to: {output_file}")
     
     return metrics
 
