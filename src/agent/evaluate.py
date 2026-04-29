@@ -52,17 +52,17 @@ def evaluate_on_episodes(model_path: str, n_episodes: int = 100):
             total_steps += m["length"]
 
     print(f"\n{'='*60}")
-    print(f"📊 EVALUATION RESULTS ({n_episodes} episodes, {total_steps} steps)")
+    print(f"EVALUATION RESULTS ({n_episodes} episodes, {total_steps} steps)")
     print(f"{'='*60}")
     
-    print(f"\n🎯 Action Distribution:")
+    print(f"\nAction Distribution:")
     for a in range(5):
         pct = action_totals[a] / max(total_steps, 1) * 100
         bar = "█" * int(pct / 2)
         print(f"   {ACTION_NAMES[a]:8s}: {action_totals[a]:5d} ({pct:5.1f}%) {bar}")
     
     avg_reward = np.mean([r["cumulative_reward"] for r in results])
-    print(f"\n📈 Avg Episode Reward: {avg_reward:.3f}")
+    print(f"\nAvg Episode Reward: {avg_reward:.3f}")
     print(f"   FP Rate: {total_fp / max(total_steps, 1):.4f}")
     print(f"   FN Rate: {total_fn / max(total_steps, 1):.4f}")
 
@@ -81,7 +81,7 @@ def evaluate_on_episodes(model_path: str, n_episodes: int = 100):
         for lang in sorted(lang_totals.keys()):
             ban_rate = lang_bans.get(lang, 0) / max(lang_totals[lang], 1)
             ratio = ban_rate / max(overall_ban_rate, 1e-8)
-            flag = "⚠️  DISPARITY" if ratio > 1.5 and ban_rate > 0 else "✅"
+            flag = "DISPARITY" if ratio > 1.5 and ban_rate > 0 else ""
             print(f"   {lang:6s}: BAN rate={ban_rate:.4f} (ratio={ratio:.2f}) {flag}")
 
 
@@ -93,7 +93,7 @@ def test_escalation_scenarios(model_path: str):
     model = MaskablePPO.load(model_path)
 
     print(f"\n{'='*60}")
-    print(f"🧪 ESCALATION SCENARIO TESTS")
+    print(f"ESCALATION SCENARIO TESTS")
     print(f"{'='*60}")
 
     # Scenario 1: Gradual escalation with repeat offenses

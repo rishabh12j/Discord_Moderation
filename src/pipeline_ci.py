@@ -28,11 +28,11 @@ def run_step(name: str, cmd: list, allow_fail: bool = False) -> bool:
     elapsed = time.time() - start
 
     if result.returncode != 0:
-        print(f"\n❌ {name} FAILED (exit code {result.returncode}, {elapsed:.1f}s)")
+        print(f"\n{name} FAILED (exit code {result.returncode}, {elapsed:.1f}s)")
         if not allow_fail:
             return False
     else:
-        print(f"\n✅ {name} completed ({elapsed:.1f}s)")
+        print(f"\n{name} completed ({elapsed:.1f}s)")
     return True
 
 
@@ -41,7 +41,7 @@ def check_model_exists(path: str) -> bool:
         size_mb = os.path.getsize(path) / (1024 * 1024)
         print(f"   Model found: {path} ({size_mb:.1f} MB)")
         return True
-    print(f"   ❌ Model not found: {path}")
+    print(f"   Model not found: {path}")
     return False
 
 
@@ -56,7 +56,7 @@ def check_nan_collapse(log_dir: str = "data/models") -> bool:
 
 def run_pipeline():
     print("=" * 60)
-    print("🚀 CI/CD PIPELINE — AUTOMATED MODEL LIFECYCLE")
+    print("CI/CD PIPELINE — AUTOMATED MODEL LIFECYCLE")
     print("=" * 60)
 
     pipeline_start = time.time()
@@ -68,21 +68,21 @@ def run_pipeline():
     ok = run_step("Train MaskablePPO",
                    [sys.executable, "-m", "src.agent.train"])
     if not ok:
-        print("\n⛔ PIPELINE ABORTED — training failed")
+        print("\nPIPELINE ABORTED — training failed")
         return False
 
     # NaN check
     if not check_nan_collapse():
-        print("\n⛔ PIPELINE ABORTED — NaN collapse detected (model file missing or empty)")
+        print("\nPIPELINE ABORTED — NaN collapse detected (model file missing or empty)")
         return False
-    print("   ✅ No NaN collapse detected")
+    print("   No NaN collapse detected")
 
     # ── Stage 2: Vectorized Evaluation ────────────────────────
     print("\n\n📦 STAGE 2: VECTORIZED EVALUATION")
     ok = run_step("Vectorized evaluation",
                    [sys.executable, "-m", "src.diagnostics.vectorized_eval"])
     if not ok:
-        print("   ⚠️  Vectorized eval failed — continuing with standard eval")
+        print("   Vectorized eval failed — continuing with standard eval")
 
     # ── Stage 3: Baseline Comparison + Confusion Matrix + Fairness Audit ─
     print("\n\n📦 STAGE 3: BASELINE COMPARISON & FAIRNESS AUDIT")
@@ -105,7 +105,7 @@ def run_pipeline():
     print(f"{'=' * 60}")
 
     if not check_model_exists(model_path):
-        print("\n⛔ PROMOTION FAILED — no model to promote")
+        print("\nPROMOTION FAILED — no model to promote")
         return False
 
     # Promote to production
@@ -117,12 +117,12 @@ def run_pipeline():
     cal_path = "data/processed/toxicity_calibration.json"
     if os.path.exists(cal_path):
         shutil.copy2(cal_path, os.path.join(production_dir, "toxicity_calibration.json"))
-        print(f"   ✅ Calibration params copied to {production_dir}/")
+        print(f"   Calibration params copied to {production_dir}/")
 
     elapsed = time.time() - pipeline_start
-    print(f"\n   ✅ Model promoted to {dest}")
+    print(f"\n   Model promoted to {dest}")
     print(f"\n{'=' * 60}")
-    print(f"✅ PIPELINE COMPLETE ({elapsed:.0f}s total)")
+    print(f"PIPELINE COMPLETE ({elapsed:.0f}s total)")
     print(f"{'=' * 60}")
     return True
 

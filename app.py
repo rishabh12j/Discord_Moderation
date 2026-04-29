@@ -1,13 +1,4 @@
-"""
-Multilingual ModBot — Shared Discord Server Simulator (Gradio demo for HF Spaces).
-
-All connected visitors share ONE channel and ONE moderator ledger — like a real
-Discord server. Pick a persona, send a message, and everyone else's view updates
-within ~1 second via a Gradio Timer poll. Mod actions (warn, delete, timeout,
-ban) are visible to all visitors. The persona radio is just a "speaking as"
-selector — multiple visitors can speak as the same persona (their messages
-stack on the same ledger, like alt-tabbed Discord sessions).
-"""
+# Gradio demo: shared multi-user Discord-like channel using ProductionModerator.
 import os
 import sys
 import threading

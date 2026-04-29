@@ -40,10 +40,10 @@ def analyze_episodes(
         with open(context_file, "r", encoding="utf-8") as f:
             context_data = json.load(f)
     except FileNotFoundError:
-        print("⚠️  context_strings.json not found — skipping raw text analysis\n")
+        print("context_strings.json not found — skipping raw text analysis\n")
 
     print("=" * 65)
-    print("📊 DIAGNOSTIC 1: EPISODE LENGTH ANALYSIS")
+    print("DIAGNOSTIC 1: EPISODE LENGTH ANALYSIS")
     print("=" * 65)
 
     # ── 1. Basic episode length distribution ────────────────────
@@ -106,7 +106,7 @@ def analyze_episodes(
     print(f"   Episodes with 3+ toxic msgs:     {episodes_with_escalation_potential} ({episodes_with_escalation_potential/len(episodes)*100:.1f}%) ← escalation territory")
     print(f"   Episodes with 5+ toxic msgs:     {(toxic_per_episode >= 5).sum()}")
 
-    print(f"\n🔥 Consecutive Toxic Streaks (max per episode)")
+    print(f"\nConsecutive Toxic Streaks (max per episode)")
     print(f"   Avg longest streak:  {max_consecutive_toxic.mean():.1f}")
     print(f"   Streak = 0 (all safe):  {(max_consecutive_toxic == 0).sum()}")
     print(f"   Streak = 1 (isolated):  {(max_consecutive_toxic == 1).sum()}")
@@ -115,7 +115,7 @@ def analyze_episodes(
     print(f"   Streak ≥ 5 (full chain): {(max_consecutive_toxic >= 5).sum()} ({(max_consecutive_toxic >= 5).mean()*100:.1f}%) ← WARN→DELETE→TIMEOUT→BAN territory")
 
     # ── 3. Same-user toxic streak analysis ──────────────────────
-    print(f"\n👤 Same-User Toxic Streaks")
+    print(f"\nSame-User Toxic Streaks")
     print(f"   (How often does ONE user send 3+ toxic messages in a row?)")
 
     same_user_escalation_episodes = 0
@@ -151,7 +151,7 @@ def analyze_episodes(
     print(f"   Episodes where one user has 5+ toxic in a row: {(same_user_max_streaks >= 5).sum()} ({(same_user_max_streaks >= 5).mean()*100:.1f}%)")
 
     # ── 4. Toxicity score distribution (bimodal check) ──────────
-    print(f"\n📈 Toxicity Score Distribution (bimodal check)")
+    print(f"\nToxicity Score Distribution (bimodal check)")
     all_tox = tox_scores
     bins_tox = [(0.0, 0.1), (0.1, 0.2), (0.2, 0.3), (0.3, 0.5),
                 (0.5, 0.7), (0.7, 0.85), (0.85, 1.01)]
@@ -163,14 +163,14 @@ def analyze_episodes(
 
     # ── 5. Verdict ──────────────────────────────────────────────
     print(f"\n{'=' * 65}")
-    print(f"🔍 DIAGNOSIS")
+    print(f"DIAGNOSIS")
     print(f"{'=' * 65}")
 
     issues = []
 
     if np.median(lengths) < 6:
         issues.append(
-            f"❌ Median episode length is {np.median(lengths):.0f} (need ≥ 6 for escalation).\n"
+            f"Median episode length is {np.median(lengths):.0f} (need ≥ 6 for escalation).\n"
             f"      → Your synthetic threads are too short. The agent rarely sees\n"
             f"        a user accumulate enough infractions to reach TIMEOUT/BAN."
         )
@@ -178,7 +178,7 @@ def analyze_episodes(
     escalation_pct = episodes_with_escalation_potential / len(episodes) * 100
     if escalation_pct < 15:
         issues.append(
-            f"❌ Only {escalation_pct:.1f}% of episodes have 3+ toxic messages.\n"
+            f"Only {escalation_pct:.1f}% of episodes have 3+ toxic messages.\n"
             f"      → The agent has very few training examples of escalation.\n"
             f"        Need ≥ 20% for reliable TIMEOUT/BAN learning."
         )
@@ -186,7 +186,7 @@ def analyze_episodes(
     same_user_pct = same_user_escalation_episodes / len(episodes) * 100
     if same_user_pct < 10:
         issues.append(
-            f"❌ Only {same_user_pct:.1f}% of episodes have one user with 3+ toxic streak.\n"
+            f"Only {same_user_pct:.1f}% of episodes have one user with 3+ toxic streak.\n"
             f"      → The escalation ladder depends on per-USER infractions, but\n"
             f"        most episodes spread toxicity across multiple users.\n"
             f"        Need episodes where ONE user is the persistent offender."
@@ -196,7 +196,7 @@ def analyze_episodes(
     mid_pct = mid_range / len(all_tox) * 100
     if mid_pct < 10:
         issues.append(
-            f"⚠️  Only {mid_pct:.1f}% of toxicity scores are in [0.3, 0.7] range.\n"
+            f"Only {mid_pct:.1f}% of toxicity scores are in [0.3, 0.7] range.\n"
             f"      → Bimodal distribution confirmed. The classifier outputs\n"
             f"        almost exclusively ~0 or ~0.9+. Your escalation thresholds\n"
             f"        (0.30, 0.55, 0.85) only have two effective bins, not four.\n"
@@ -204,7 +204,7 @@ def analyze_episodes(
         )
 
     if not issues:
-        print("   ✅ Training data looks healthy for escalation learning!")
+        print("   Training data looks healthy for escalation learning!")
     else:
         for issue in issues:
             print(f"\n   {issue}")

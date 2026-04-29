@@ -148,7 +148,7 @@ class ModerationLogCallback(BaseCallback):
                 self.episode_fn_rates.append(metrics["fn_rate"])
 
         if self.n_calls % self.log_freq == 0 and len(self.episode_rewards) > 0:
-            print(f"\n📊 Step {self.n_calls}:")
+            print(f"\nStep {self.n_calls}:")
             print(f"   Avg Reward:  {np.mean(self.episode_rewards[-100:]):.3f}")
             print(f"   Avg FP Rate: {np.mean(self.episode_fp_rates[-100:]):.3f}")
             print(f"   Avg FN Rate: {np.mean(self.episode_fn_rates[-100:]):.3f}")
@@ -223,7 +223,7 @@ def train():
     log_callback = ModerationLogCallback(log_freq=5000)
 
     # Train
-    print(f"\n🚀 Training for {TOTAL_TIMESTEPS:,} timesteps with {N_ENVS} parallel envs...")
+    print(f"\nTraining for {TOTAL_TIMESTEPS:,} timesteps with {N_ENVS} parallel envs...")
     print(f"   gamma={model.gamma}, lr={model.learning_rate}, max_grad_norm={model.max_grad_norm}")
     
     model.learn(
@@ -235,7 +235,7 @@ def train():
     # Save
     save_path = "data/models/ppo_moderation_fixed"
     model.save(save_path)
-    print(f"\n✅ TRAINING COMPLETE! Model saved to {save_path}")
+    print(f"\nTRAINING COMPLETE! Model saved to {save_path}")
 
 
 if __name__ == "__main__":

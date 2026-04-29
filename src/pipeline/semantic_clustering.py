@@ -35,7 +35,7 @@ def find_optimal_k(embeddings, lang, max_k: int = 20) -> int:
 
     # If we somehow did not compute anything, fall back
     if len(inertias) < 3:
-        print(f"⚠️ {lang}: fallback k=2 (insufficient points for elbow)")
+        print(f"{lang}: fallback k=2 (insufficient points for elbow)")
         return 2
 
     # Elbow method: biggest drop in inertia second derivative
@@ -45,7 +45,7 @@ def find_optimal_k(embeddings, lang, max_k: int = 20) -> int:
     silhouette_peak_k = int(np.argmax(silhouettes) + 2)
 
     optimal_k = min(elbow_k, silhouette_peak_k, max_k_effective)
-    print(f"📈 {lang}: Optimal k={optimal_k} (elbow={elbow_k}, silhouette_peak={silhouette_peak_k})")
+    print(f"{lang}: Optimal k={optimal_k} (elbow={elbow_k}, silhouette_peak={silhouette_peak_k})")
 
     return optimal_k
 
@@ -75,7 +75,7 @@ def cluster_multilingual(
     for lang in df["language"].unique():
         lang_df = df[df["language"] == lang].copy()
         print(f"\n{'=' * 60}")
-        print(f"🔍 Processing {lang}: {len(lang_df)} samples")
+        print(f"Processing {lang}: {len(lang_df)} samples")
 
         texts = lang_df["text"].astype(str).tolist()
         embeddings = model.encode(
@@ -92,7 +92,7 @@ def cluster_multilingual(
             optimal_k = min(max_clusters_per_language, max(2, len(lang_df) // 20))
 
         if optimal_k < 2:
-            print(f"⚠️ Skipping clustering for {lang}: insufficient samples")
+            print(f"Skipping clustering for {lang}: insufficient samples")
             lang_df["cluster_id"] = 0
             clustering_metrics[lang] = {
                 "n_samples": int(len(lang_df)),
@@ -106,7 +106,7 @@ def cluster_multilingual(
             clustered_dfs.append(lang_df)
             continue
 
-        print(f"🎯 Using optimal k={optimal_k}")
+        print(f"Using optimal k={optimal_k}")
         kmeans = KMeans(n_clusters=optimal_k, random_state=42, n_init="auto")
         cluster_labels = kmeans.fit_predict(embeddings)
         lang_df["cluster_id"] = cluster_labels
@@ -118,7 +118,7 @@ def cluster_multilingual(
             toxic_ratio = float(lang_df["toxic"].mean()) if "toxic" in lang_df.columns else 0.0
 
             if toxic_ratio > 0.6:
-                print(f"💡 {lang} toxicity-heavy ({toxic_ratio:.1%}) → low silhouette is expected")
+                print(f"{lang} toxicity-heavy ({toxic_ratio:.1%}) → low silhouette is expected")
                 quality = "Normal for toxic data" if silhouette_avg > -0.1 else "Review data"
             elif silhouette_avg > 0.3:
                 quality = "Excellent"
@@ -127,8 +127,8 @@ def cluster_multilingual(
             else:
                 quality = "Acceptable for text"
 
-            print(f"📊 Metrics: Silhouette={silhouette_avg:.3f}, DBI={davies_bouldin:.3f}")
-            print(f"🎯 Quality: {quality}")
+            print(f"Metrics: Silhouette={silhouette_avg:.3f}, DBI={davies_bouldin:.3f}")
+            print(f"Quality: {quality}")
 
             clustering_metrics[lang] = {
                 "n_samples": int(len(lang_df)),
@@ -140,7 +140,7 @@ def cluster_multilingual(
                 "status": "success",
             }
         except Exception as e:
-            print(f"⚠️ Metrics error for {lang}: {e}")
+            print(f"Metrics error for {lang}: {e}")
             clustering_metrics[lang] = {
                 "n_samples": int(len(lang_df)),
                 "n_clusters": int(optimal_k),
@@ -205,7 +205,7 @@ def cluster_multilingual(
     with open(metrics_file, "w", encoding="utf-8") as f:
         json.dump(metrics_summary, f, indent=4, cls=NumpyEncoder)
 
-    print("\n✅ FIXED CLUSTERING COMPLETE!")
+    print("\nFIXED CLUSTERING COMPLETE!")
     print(f"   Data: {len(final_df)} rows, {final_df['cluster_id'].nunique()} clusters")
     print(f"   Metrics: {metrics_file}")
 

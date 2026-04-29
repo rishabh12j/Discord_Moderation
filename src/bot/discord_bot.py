@@ -235,7 +235,7 @@ async def _action_warn(message: discord.Message, result: dict):
     """Reply with a public warning embed, do not delete the message."""
     warns = int(result.get("user_warns", 1))
     embed = discord.Embed(
-        title="⚠️ Warning",
+        title="Warning",
         description=(
             f"{message.author.mention}, this message has been flagged.\n"
             f"Please keep the conversation respectful.\n\n"
@@ -257,7 +257,7 @@ async def _action_delete(message: discord.Message, result: dict):
     reason = f"Threat detected ({threat})" if threat else "Harmful content"
 
     embed = discord.Embed(
-        title="🗑️ Message Removed",
+        title="Message Removed",
         description=(
             f"{message.author.mention}, your message was removed.\n"
             f"**Reason:** {reason}\n\n"
@@ -285,7 +285,7 @@ async def _action_timeout(message: discord.Message, result: dict):
         pass  # Bot lacks Moderate Members permission or user not a Member
 
     embed = discord.Embed(
-        title="⏱️ Timeout",
+        title="⏱Timeout",
         description=(
             f"{message.author.mention} has been timed out for **{duration_label}**.\n"
             f"This is timeout **{timeouts}**.\n\n"
@@ -443,7 +443,7 @@ async def cmd_modreset(ctx: commands.Context, member: discord.Member = None):
         })
 
     await ctx.send(
-        f"✅ Ledger for {member.mention} has been reset by {ctx.author.mention}.",
+        f"Ledger for {member.mention} has been reset by {ctx.author.mention}.",
         allowed_mentions=discord.AllowedMentions(users=False),
     )
 
@@ -463,8 +463,8 @@ async def cmd_modstatus(ctx: commands.Context):
         colour=discord.Colour.green() if model_ok and db_ok else discord.Colour.red(),
         timestamp=datetime.datetime.utcnow(),
     )
-    embed.add_field(name="Model",       value="✅ Loaded" if model_ok else "❌ Not loaded", inline=True)
-    embed.add_field(name="Database",    value="✅ Connected" if db_ok else "❌ Not connected", inline=True)
+    embed.add_field(name="Model",       value="Loaded" if model_ok else "Not loaded", inline=True)
+    embed.add_field(name="Database",    value="Connected" if db_ok else "Not connected", inline=True)
     embed.add_field(name="Guild ID",    value=GUILD_ID_STR, inline=True)
     embed.add_field(name="Users tracked", value=str(ledger_size), inline=True)
     embed.add_field(name="Banned users",  value=str(banned_count), inline=True)
@@ -490,9 +490,9 @@ async def cmd_modstatus(ctx: commands.Context):
 @bot.event
 async def on_command_error(ctx: commands.Context, error):
     if isinstance(error, commands.MissingPermissions):
-        await ctx.send("❌ You don't have permission to use that command.", delete_after=10)
+        await ctx.send("You don't have permission to use that command.", delete_after=10)
     elif isinstance(error, commands.MemberNotFound):
-        await ctx.send("❌ Member not found. Mention them directly: `!modprofile @user`", delete_after=10)
+        await ctx.send("Member not found. Mention them directly: `!modprofile @user`", delete_after=10)
     elif isinstance(error, commands.CommandNotFound):
         pass  # Silently ignore unknown commands
     else:

@@ -46,7 +46,7 @@ def run_extended_chain():
     ]
 
     print("=" * 70)
-    print("🧪 DIAGNOSTIC 3: EXTENDED HARASSMENT CHAIN (12 messages, 1 user)")
+    print("DIAGNOSTIC 3: EXTENDED HARASSMENT CHAIN (12 messages, 1 user)")
     print("=" * 70)
     print()
     print("Expected escalation: ALLOW/WARN → WARN → DELETE → TIMEOUT → BAN")
@@ -72,7 +72,7 @@ def run_extended_chain():
         elif decision == "TIMEOUT":
             icon = "🔴"
         elif decision == "BAN":
-            icon = "⛔"
+            icon = ""
         elif decision == "REJECTED":
             icon = "🚫"
         else:
@@ -98,7 +98,7 @@ def run_extended_chain():
     profile = moderator.get_user_profile(user_id)
     
     print(f"\n{'=' * 70}")
-    print(f"📋 FINAL USER PROFILE")
+    print(f"FINAL USER PROFILE")
     print(f"{'=' * 70}")
     print(f"   Status:      {profile.get('status', 'unknown')}")
     print(f"   Warns:       {led.get('warns', 0):.0f}")
@@ -106,21 +106,21 @@ def run_extended_chain():
     print(f"   Infractions: {led.get('total_infractions', 0):.0f}")
     print(f"   Banned:      {user_id in moderator.banned_users}")
     
-    print(f"\n🔍 DIAGNOSIS")
+    print(f"\nDIAGNOSIS")
     warns = led.get("warns", 0)
     timeouts = led.get("timeouts", 0)
     is_banned = user_id in moderator.banned_users
     
     if is_banned and timeouts >= 1 and warns >= 1:
-        print(f"   ✅ Full escalation chain completed: WARN({warns:.0f}) → TIMEOUT({timeouts:.0f}) → BAN")
+        print(f"   Full escalation chain completed: WARN({warns:.0f}) → TIMEOUT({timeouts:.0f}) → BAN")
     elif timeouts >= 1:
-        print(f"   ⚠️  TIMEOUT was reached but BAN was not triggered.")
+        print(f"   TIMEOUT was reached but BAN was not triggered.")
         print(f"      → Agent may need more training on the TIMEOUT→BAN transition.")
     elif warns >= 1 and timeouts == 0:
-        print(f"   ❌ Agent never reached TIMEOUT (stuck on WARN/DELETE).")
+        print(f"   Agent never reached TIMEOUT (stuck on WARN/DELETE).")
         print(f"      → Confirms the Step 5 problem. Need training data fix or reward reshaping.")
     else:
-        print(f"   ❌ Minimal escalation. Check if the model loaded correctly.")
+        print(f"   Minimal escalation. Check if the model loaded correctly.")
     
     print()
 
@@ -144,30 +144,30 @@ def run_multi_user_test():
     ]
 
     print("=" * 70)
-    print("🧪 BONUS: MULTI-USER TEST (troll vs. innocent bystander)")
+    print("BONUS: MULTI-USER TEST (troll vs. innocent bystander)")
     print("=" * 70)
     print()
 
     for i, (uid, msg) in enumerate(messages):
         result = moderator.moderate(msg, uid)
         icon = {"ALLOW": "🟢", "WARN": "🟡", "DELETE": "🟠", 
-                "TIMEOUT": "🔴", "BAN": "⛔", "REJECTED": "🚫"}.get(result["decision"], "❓")
+                "TIMEOUT": "🔴", "BAN": "", "REJECTED": "🚫"}.get(result["decision"], "❓")
         
-        user_label = "👤 nice " if uid == "nice_user" else "💀 troll"
+        user_label = "nice " if uid == "nice_user" else "💀 troll"
         print(f"  {icon} [{user_label}] '{msg}'")
         print(f"          → {result['decision']}  tox={result.get('toxicity', 'N/A')}  "
               f"inf={result['total_infractions']:.0f}")
 
-    print(f"\n📋 Final Profiles:")
+    print(f"\nFinal Profiles:")
     for uid in ["nice_user", "troll_user"]:
         p = moderator.get_user_profile(uid)
         print(f"   {uid:12s}: {p}")
 
     nice_inf = moderator.user_ledger.get("nice_user", {}).get("total_infractions", 0)
     if nice_inf == 0:
-        print(f"\n   ✅ Innocent user was never punished (0 infractions)")
+        print(f"\n   Innocent user was never punished (0 infractions)")
     else:
-        print(f"\n   ❌ Innocent user got {nice_inf:.0f} infraction(s) — false positive!")
+        print(f"\n   Innocent user got {nice_inf:.0f} infraction(s) — false positive!")
 
     print()
 

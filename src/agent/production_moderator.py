@@ -1,10 +1,3 @@
-"""
-Production Moderator — v5.
-Changes:
-  - Change 2: language_id (13-dim one-hot) in observation, matching discord_env v5.
-  - Change 3: Multilingual threat detection for all 13 languages.
-  - All v4 features: cool-down, calibration, momentum, effective infractions.
-"""
 import re
 import json
 import numpy as np
@@ -20,13 +13,7 @@ LANG_TO_IDX = {
 }
 NUM_LANGUAGES = 13
 
-# ═══════════════════════════════════════════════════════════════
-# Gaming vocabulary that XLM-R falsely scores as toxic.
-# Messages matching any of these patterns are clamped to score 0.0
-# regardless of the classifier output.
-# These are common gaming phrases (GG, well played, etc.) that are
-# semantically positive but trigger false positives in XLM-R.
-# ═══════════════════════════════════════════════════════════════
+# Gaming slang that XLM-R falsely scores as toxic; clamp these to 0.
 _BENIGN_GAMING_PATTERNS = re.compile(
     r"^(gg(\s+wp)?([,\s]+(close\s+(one|game)|wp))?|good\s+game|well\s+played|glhf|gl\s+hf|"
     r"nice\s+(shot|play|one|round|game)|wp\b|gg\s+close|close\s+(one|game)|ez\s+clap|clutch|"
@@ -36,13 +23,6 @@ _BENIGN_GAMING_PATTERNS = re.compile(
     re.IGNORECASE
 )
 
-
-# ═══════════════════════════════════════════════════════════════
-# Change 3: MULTILINGUAL THREAT DETECTION
-# Patterns organized by category, each category has patterns for
-# all 13 languages. Japanese/Chinese use character-based matching
-# (no \b word boundaries). Arabic/Hebrew are RTL-safe.
-# ═══════════════════════════════════════════════════════════════
 
 THREAT_PATTERNS_MULTILINGUAL = {
     # Category 1: Stalking / location threats ("I will find where you live")
@@ -175,7 +155,6 @@ THREAT_PATTERNS_MULTILINGUAL = {
     ],
 }
 
-# Compile all patterns
 _compiled_multilingual_threats = []
 for category, patterns in THREAT_PATTERNS_MULTILINGUAL.items():
     for pattern in patterns:
@@ -184,21 +163,15 @@ for category, patterns in THREAT_PATTERNS_MULTILINGUAL.items():
                 (category, re.compile(pattern, re.IGNORECASE | re.UNICODE))
             )
         except re.error:
-            pass  # Skip invalid patterns gracefully
+            pass
 
 
-def detect_threat(text: str) -> tuple:
-    """
-    Returns (is_threat: bool, category: str or None).
-    Checks all multilingual threat patterns.
-    """
+def detect_threat(text):
     for category, pattern in _compiled_multilingual_threats:
         if pattern.search(text):
             return True, category
     return False, None
 
-
-# ═══════════════════════════════════════════════════════════════
 
 class ProductionModerator:
 
@@ -210,18 +183,15 @@ class ProductionModerator:
     DECAY_RATE = 1.0
     MOMENTUM_WINDOW = 10
 
-    # Training used k=3 context window — production must match to avoid
-    # train/inference embedding distribution mismatch (Fix: Issue #4).
+    # Must match training (k=3) or the embedding distribution shifts.
     CONTEXT_WINDOW = 3
 
-    # Monte-Carlo confidence: for borderline toxicity, sample the policy
-    # N times stochastically and take majority vote (Meta paper Section 3.3.1).
     MC_SAMPLES = 4
-    MC_TOX_LOW  = 0.30   # below this: always deterministic (clearly benign)
-    MC_TOX_HIGH = 0.70   # above this: always deterministic (clearly toxic)
+    MC_TOX_LOW  = 0.30
+    MC_TOX_HIGH = 0.70
 
-    def __init__(self, model_path: str = "data/models/best/best_model.zip",
-                 calibration_file: str = "data/processed/toxicity_calibration.json"):
+    def __init__(self, model_path="data/models/best/best_model.zip",
+                 calibration_file="data/processed/toxicity_calibration.json"):
         self.encoder = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
         self.judge = pipeline(
             "text-classification",
@@ -236,36 +206,24 @@ class ProductionModerator:
 
         self.recent_toxicity = deque(maxlen=50)
         self.recent_actions = deque(maxlen=50)
+        self._channel_history = {}
 
-        # Per-channel sliding window for context-aware embeddings.
-        # Key: channel_id (str), Value: deque of recent message strings.
-        self._channel_history: dict = {}
-
-        # Load calibration
         self.calibration = None
-        try:
-            import os
-            if os.path.exists(calibration_file):
-                with open(calibration_file, "r") as f:
-                    self.calibration = json.load(f)
-                print(f"✅ Loaded per-language calibration from {calibration_file}")
-            else:
-                print(f"⚠️  No calibration file at {calibration_file} — using raw scores")
-        except Exception as e:
-            print(f"⚠️  Failed to load calibration: {e}")
+        import os
+        if os.path.exists(calibration_file):
+            with open(calibration_file) as f:
+                self.calibration = json.load(f)
+            print(f"loaded calibration from {calibration_file}")
+        else:
+            print(f"no calibration file at {calibration_file}, using raw scores")
 
-        # Language detector
         try:
             from src.utils.language_detector import detect_language
             self._detect_language = detect_language
-            print(f"✅ Language detector loaded")
         except ImportError:
             self._detect_language = None
-            print(f"⚠️  Language detector not available")
 
-    # ── ledger helpers ──────────────────────────────────────────
-
-    def _ensure_ledger(self, user_id: str):
+    def _ensure_ledger(self, user_id):
         if user_id not in self.user_ledger:
             self.user_ledger[user_id] = {
                 "warns": 0.0, "timeouts": 0.0, "total_infractions": 0.0,
@@ -273,7 +231,7 @@ class ProductionModerator:
                 "tox_momentum": deque(maxlen=self.MOMENTUM_WINDOW),
             }
 
-    def _get_effective_infractions(self, user_id: str) -> float:
+    def _get_effective_infractions(self, user_id):
         led = self.user_ledger[user_id]
         raw = led["total_infractions"]
         if led["clean_streak"] <= self.COOLDOWN_THRESHOLD:
@@ -281,16 +239,14 @@ class ProductionModerator:
         decay_steps = led["clean_streak"] - self.COOLDOWN_THRESHOLD
         return max(0.0, raw - decay_steps * self.DECAY_RATE)
 
-    def _get_effective_warns(self, user_id: str) -> float:
+    def _get_effective_warns(self, user_id):
         led = self.user_ledger[user_id]
         if led["clean_streak"] <= self.COOLDOWN_THRESHOLD:
             return led["warns"]
         decay_steps = led["clean_streak"] - self.COOLDOWN_THRESHOLD
         return max(0.0, led["warns"] - decay_steps * 0.5)
 
-    # ── language helpers ────────────────────────────────────────
-
-    def _detect_msg_language(self, message: str) -> str:
+    def _detect_msg_language(self, message):
         if self._detect_language is None:
             return "en"
         try:
@@ -299,7 +255,7 @@ class ProductionModerator:
         except Exception:
             return "other"
 
-    def _get_language_onehot(self, lang_code: str) -> np.ndarray:
+    def _get_language_onehot(self, lang_code):
         vec = np.zeros(NUM_LANGUAGES, dtype=np.float32)
         idx = LANG_TO_IDX.get(lang_code, -1)
         if idx >= 0:
@@ -308,9 +264,7 @@ class ProductionModerator:
             vec[:] = 1.0 / NUM_LANGUAGES
         return vec
 
-    # ── toxicity scoring ────────────────────────────────────────
-
-    def _calibrate_score(self, raw_score: float, lang: str) -> float:
+    def _calibrate_score(self, raw_score, lang):
         if self.calibration is None:
             return raw_score
         lang_params = self.calibration.get("languages", {}).get(lang)
@@ -320,37 +274,30 @@ class ProductionModerator:
         offset = lang_params.get("offset", 0.0)
         return float(np.clip(raw_score * scale + offset, 0.0, 1.0))
 
-    def _get_toxicity(self, message: str, lang: str = None) -> tuple:
-        """Returns (calibrated_score, detected_language, threat_category)."""
+    def _get_toxicity(self, message, lang=None):
         if not message.strip():
             return 0.0, lang or "other", None
 
         if lang is None:
             lang = self._detect_msg_language(message)
 
-        # Benign gaming vocabulary override — XLM-R falsely scores these as toxic
         if _BENIGN_GAMING_PATTERNS.match(message.strip()):
             return 0.0, lang, None
 
-        # Raw classifier score
         result = self.judge(message)[0]
         is_toxic_label = result["label"].lower() in ["toxic", "1", "label_1"]
         raw_score = result["score"] if is_toxic_label else 1.0 - result["score"]
         raw_score = float(np.clip(raw_score, 0.0, 1.0))
 
-        # Per-language calibration
         score = self._calibrate_score(raw_score, lang)
 
-        # Change 3: Multilingual threat detection fallback
         is_threat, threat_cat = detect_threat(message)
         if is_threat and score < 0.80:
             score = max(score, 0.85)
 
         return score, lang, threat_cat
 
-    # ── action masking ──────────────────────────────────────────
-
-    def _get_action_mask(self, tox: float, user_id: str) -> np.ndarray:
+    def _get_action_mask(self, tox, user_id):
         led = self.user_ledger[user_id]
         eff_inf = self._get_effective_infractions(user_id)
         mask = np.ones(5, dtype=bool)
@@ -360,7 +307,7 @@ class ProductionModerator:
         if eff_inf < 2:
             mask[3] = False
         if tox < 0.15:
-            mask[1] = False  # FIX D: block WARN — too lenient for near-zero toxicity
+            mask[1] = False
             mask[2] = False
             mask[3] = False
             mask[4] = False
@@ -370,49 +317,25 @@ class ProductionModerator:
             mask[0] = True
         return mask
 
-    # ── context window helpers ──────────────────────────────────
-
-    def _get_context_embedding(self, message: str, channel_id: str) -> np.ndarray:
-        """
-        Build a k=3 sliding-window context string and embed it.
-
-        Training used context_strings.json with k=3 windows — production
-        must use the same scheme or the 384-dim embedding distribution will
-        differ from what the policy was trained on (Issue #4 fix).
-        """
+    def _get_context_embedding(self, message, channel_id):
         if channel_id not in self._channel_history:
             self._channel_history[channel_id] = deque(maxlen=self.CONTEXT_WINDOW)
 
         history = self._channel_history[channel_id]
-
-        # Build context: [prev_k, ..., prev_1, current]
-        context_parts = list(history) + [message]
-        context_str = " [SEP] ".join(context_parts)
+        context_str = " [SEP] ".join(list(history) + [message])
 
         embedding = self.encoder.encode([context_str])[0].astype(np.float32)
         embedding = np.nan_to_num(embedding, nan=0.0, posinf=1.0, neginf=-1.0)
         embedding = np.clip(embedding, -1.0, 1.0)
 
-        # Update history AFTER building embedding (so current message isn't included
-        # in its own context window for the next message)
         history.append(message)
         return embedding
 
-    def _predict_with_mc(self, obs: dict, mask: np.ndarray, tox: float) -> int:
-        """
-        Monte-Carlo confidence estimation for borderline toxicity scores.
-
-        Meta paper Section 3.3.1: single-pass classification produces bimodal
-        confidence distributions. For borderline content (tox in MC_TOX_LOW..MC_TOX_HIGH),
-        sample MC_SAMPLES stochastic rollouts and return the majority vote action.
-        Outside this range, use deterministic inference (faster, more confident).
-        """
-        # Clear-cut cases: use deterministic inference
+    def _predict_with_mc(self, obs, mask, tox):
         if tox < self.MC_TOX_LOW or tox > self.MC_TOX_HIGH:
             action, _ = self.model.predict(obs, deterministic=True, action_masks=mask)
             return int(action)
 
-        # Borderline: sample stochastically and take majority vote
         votes = []
         for _ in range(self.MC_SAMPLES):
             a, _ = self.model.predict(obs, deterministic=False, action_masks=mask)
@@ -441,16 +364,12 @@ class ProductionModerator:
         self._ensure_ledger(user_id)
         led = self.user_ledger[user_id]
 
-        # Context-window embedding (fix train/inference mismatch — Issue #4)
         embedding = self._get_context_embedding(message, channel_id)
-
-        # Toxicity (with calibration + multilingual threat detection)
         tox, detected_lang, threat_cat = self._get_toxicity(message)
 
         eff_warns = self._get_effective_warns(user_id)
         eff_inf = self._get_effective_infractions(user_id)
 
-        # Observation — must match discord_env v5 exactly
         obs = {
             "message_embedding": embedding,
             "toxicity_score": np.array([tox], dtype=np.float32),
@@ -464,13 +383,11 @@ class ProductionModerator:
         }
 
         mask = self._get_action_mask(tox, user_id)
-        # Monte-Carlo confidence for borderline toxicity (Meta paper Section 3.3.1)
         action = self._predict_with_mc(obs, mask, tox)
 
         action_names = ["ALLOW", "WARN", "DELETE", "TIMEOUT", "BAN"]
         decision = action_names[action]
 
-        # Update ledger
         if action >= 1:
             led["clean_streak"] = 0
             led["last_infraction_step"] = self.global_step
@@ -509,7 +426,7 @@ class ProductionModerator:
             "clean_streak": led["clean_streak"],
         }
 
-    def _compute_server_heat(self) -> np.ndarray:
+    def _compute_server_heat(self):
         if not self.recent_toxicity:
             return np.array([0.0, 0.0], dtype=np.float32)
         tox_rate = np.mean([1.0 if t > 0.5 else 0.0 for t in self.recent_toxicity])
@@ -518,7 +435,7 @@ class ProductionModerator:
         return np.array([min(float(tox_rate), 1.0),
                          min(float(act_rate), 1.0)], dtype=np.float32)
 
-    def get_user_profile(self, user_id: str) -> dict:
+    def get_user_profile(self, user_id):
         if user_id in self.banned_users:
             return {"status": "banned", **{k: v for k, v in self.user_ledger.get(user_id, {}).items() if k != "tox_momentum"}}
         if user_id not in self.user_ledger:
@@ -535,8 +452,6 @@ class ProductionModerator:
         }
 
 
-# ── demo ────────────────────────────────────────────────────────
-
 if __name__ == "__main__":
     moderator = ProductionModerator()
     user_id = "test_user"
@@ -551,9 +466,6 @@ if __name__ == "__main__":
         "Just kidding guys, gg.",
     ]
 
-    print("=== ESCALATION TEST ===")
-    print("Expected: ALLOW → ALLOW → WARN → DELETE → TIMEOUT → BAN → REJECTED")
-    print()
     for i, msg in enumerate(test_chain):
         result = moderator.moderate(msg, user_id)
         threat = f" [THREAT:{result['threat_detected']}]" if result.get('threat_detected') else ""

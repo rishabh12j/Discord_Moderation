@@ -81,7 +81,7 @@ def compute_toxicity_scores(
     languages = np.array(languages)
 
     # ── Step 2: Compute per-language calibration anchors ────────
-    print(f"\n📊 Computing per-language calibration anchors...")
+    print(f"\nComputing per-language calibration anchors...")
 
     calibration_params = {"method": "percentile_anchors", "languages": {}}
 
@@ -162,7 +162,7 @@ def compute_toxicity_scores(
             "calibrated": True,
         }
 
-        flag = "⚠️" if abs(shift) > 0.05 else "  "
+        flag = "" if abs(shift) > 0.05 else "  "
         print(f"   {lang:4s}: n={len(lang_scores):5d}  "
               f"raw_low={lang_low:.3f}  raw_high={lang_high:.3f}  "
               f"scale={scale:.3f}  shift={shift:+.3f} {flag}")
@@ -176,14 +176,14 @@ def compute_toxicity_scores(
         }
 
     # ── Step 3: Report ──────────────────────────────────────────
-    print(f"\n📊 Calibrated Score Distribution:")
+    print(f"\nCalibrated Score Distribution:")
     print(f"   Range:        [{calibrated_scores.min():.3f}, {calibrated_scores.max():.3f}]")
     print(f"   Mean:         {calibrated_scores.mean():.3f}")
     print(f"   Toxic (>0.5): {(calibrated_scores > 0.5).sum()} / {len(calibrated_scores)} "
           f"({(calibrated_scores > 0.5).mean()*100:.1f}%)")
 
     # Per-language distribution after calibration
-    print(f"\n📊 Per-Language Calibrated Distribution:")
+    print(f"\nPer-Language Calibrated Distribution:")
     print(f"   {'Lang':5s} {'Count':>6s} {'Mean':>7s} {'<0.30':>7s} {'0.30-0.70':>10s} {'>0.70':>7s}")
     print(f"   {'─'*48}")
     for lang in LANGUAGES:
@@ -204,8 +204,8 @@ def compute_toxicity_scores(
     with open(calibration_file, "w") as f:
         json.dump(calibration_params, f, indent=2)
 
-    print(f"\n✅ Saved calibrated scores to {output_file}")
-    print(f"✅ Saved per-language calibration params to {calibration_file}")
+    print(f"\nSaved calibrated scores to {output_file}")
+    print(f"Saved per-language calibration params to {calibration_file}")
 
 
 if __name__ == "__main__":
