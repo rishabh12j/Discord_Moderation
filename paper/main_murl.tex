@@ -5,8 +5,13 @@
 
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
-\usepackage{hyperref}
+\usepackage[hidelinks]{hyperref}
 \usepackage{url}
+
+% Override the conference ordinal: this is the 2nd annual MURL, not the 1st.
+\makeatletter
+\renewcommand{\@neuripsordinal}{2nd}
+\makeatother
 \usepackage{booktabs}
 \usepackage{amsfonts}
 \usepackage{amsmath}
