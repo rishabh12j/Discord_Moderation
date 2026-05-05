@@ -1,0 +1,9 @@
+{
+  "model_name": "textdetox/xlmr-large-toxicity-classifier-v2",
+  "num_messages": 60667,
+  "score_range": [
+    0.0,
+    1.0
+  ],
+  "source_file": "messages_with_language.parquet"
+}
