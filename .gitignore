@@ -25,8 +25,16 @@ env/
 data/raw/
 data/processed/*.npy
 data/processed/*.json
+data/processed/*.parquet
 !data/processed/toxicity_calibration.json
 data/bot/*.db
+data/embeddings.npy
+data/embeddings_meta.json
+data/toxicity_scores.npy
+data/toxicity_scores_meta.json
+data/user_norms.json
+data/user_norms_meta.json
+data/calibrated_thresholds.json
 
 # Model weights (large binary files)
 data/models/*.zip

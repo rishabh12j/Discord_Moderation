@@ -1,7 +1,0 @@
-{
-  "model_name": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
-  "embedding_dim": 384,
-  "num_messages": 60667,
-  "normalized": true,
-  "source_file": "messages_with_language.parquet"
-}

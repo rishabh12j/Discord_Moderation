@@ -1,8 +1,0 @@
-{
-  "num_users": 1000,
-  "msg_count_min": 60,
-  "msg_count_max": 61,
-  "msg_count_median": 61.0,
-  "msg_count_mean": 60.667,
-  "overall_toxicity_mean": 0.4974849726775956
-}
