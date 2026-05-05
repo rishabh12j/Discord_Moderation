@@ -65,6 +65,7 @@
 }
 
 \begin{document}
+\tikzposterlatexaffectionproofoff
 \maketitle[width=0.96\textwidth, titletotopverticalspace=6mm, titletoblockverticalspace=8mm]
 
 % ============================================================
@@ -75,15 +76,13 @@
 \begin{minipage}[t]{0.48\linewidth}
 \textbf{\Large The Problem.}\\[1mm]
 
+Automated content moderation on multilingual platforms like Discord is broken in following ways:\\[2mm]
+\begin{itemize}\setlength\itemsep{1mm}
+    \item \textbf{No user history:} Every message is scored in isolation, a user who sends ten borderline messages in a row gets the same response as a first-time offender, because the system has no memory of prior behavior.
+    \item \textbf{Binary decisions only:} The output is always either remove or permit, there is no mechanism to issue a warning, temporarily suspend, or escalate gradually, so the system cannot mirror the nuanced enforcement humans apply.
+\end{itemize}\\[2mm]
 
-Discord moderators apply \textbf{graduated punishments} — warnings, deletions, timeouts, bans —
-based on the full trajectory of a user's behaviour. Automated systems collapse this to a binary
-\textit{remove}/\textit{permit} decision and ignore user history.\\[2mm]
 
-Across \textbf{13 languages}, multilingual toxicity classifiers (XLM-R) carry systematic
-per-language bias: Arabic averages $-0.139$ below English-equivalent content; Italian,
-Ukrainian, and German are under-scored; Hinglish is over-scored by $+0.095$. Threshold-based
-moderation bakes this bias into every decision.
 \end{minipage}\hfill
 \vrule width 0.5pt\hfill
 \begin{minipage}[t]{0.48\linewidth}
@@ -111,7 +110,7 @@ $\;\max_\pi V_R^\pi$ subject to $V_{C_k}^\pi \leq d_k$ for all constraints $k$ (
 \node[draw, rounded corners, fill=muyellow!50,             minimum width=78mm, minimum height=22mm, right=of a] (w) {WARN};
 \node[draw, rounded corners, fill=muorange!55,             minimum width=78mm, minimum height=22mm, right=of w] (d) {DELETE};
 \node[draw, rounded corners, fill=muaccent!55,             minimum width=78mm, minimum height=22mm, right=of d] (t) {TIMEOUT};
-\node[draw, rounded corners, fill=muaccent!85, text=white, minimum width=78mm, minimum height=22mm, right=of t] (b) {BAN};
+\node[draw, rounded corners, fill=muaccent!85, minimum width=78mm, minimum height=22mm, right=of t] (b) {BAN};
 \node[font=\footnotesize\mdseries, below=1mm of a] {$s_t < 0.85$};
 \node[font=\footnotesize\mdseries, below=1mm of w] {$s_t \geq 0.15$};
 \node[font=\footnotesize\mdseries, below=1mm of d] {$s_t \geq 0.15$};
@@ -124,27 +123,26 @@ $\;\max_\pi V_R^\pi$ subject to $V_{C_k}^\pi \leq d_k$ for all constraints $k$ (
 \end{tikzpicture}
 \end{center}
 
-\vspace{4mm}
+\vspace{2mm}
 \begin{minipage}[t]{0.32\linewidth}
 \centering
 \colorbox{munavy}{\parbox{0.95\linewidth}{\centering\color{white}\vspace{1mm}\textbf{\large Single Multilingual Policy}\vspace{1mm}}}\\[2mm]
-\normalsize One MaskablePPO network across 13 languages — fairness comparisons \textit{across} languages become coherent because the same policy is evaluated.
+\normalsize One MaskablePPO network across 13 languages fairness comparisons \textit{across} languages become coherent because the same policy is evaluated.
 \end{minipage}\hfill
 \begin{minipage}[t]{0.32\linewidth}
 \centering
 \colorbox{muaccent}{\parbox{0.95\linewidth}{\centering\color{white}\vspace{1mm}\textbf{\large Hard Procedural Masking}\vspace{1mm}}}\\[2mm]
-\normalsize Mask $\mathbf{m}_t \in \{0,1\}^5$ removes illegal actions from the policy distribution \textit{before} sampling — a learned policy cannot propose them even by accident.
+\normalsize Mask $\mathbf{m}_t \in \{0,1\}^5$ removes illegal actions from the policy distribution \textit{before} sampling a learned policy cannot propose them even by accident.
 \end{minipage}\hfill
 \begin{minipage}[t]{0.32\linewidth}
 \centering
 \colorbox{mugreen}{\parbox{0.95\linewidth}{\centering\color{white}\vspace{1mm}\textbf{\large Fairness in the Loss}\vspace{1mm}}}\\[2mm]
-\normalsize $\lambda_{k+1} = \max(\epsilon,\lambda_k+\alpha_\lambda(\hat{V}_{C_k}-d_k))$ — adaptive multiplier on FP rate; Disparate Impact wrapper penalises any language $> 1.5\times$ baseline.
+\normalsize $\lambda_{k+1} = \max(\epsilon,\lambda_k+\alpha_\lambda(\hat{V}_{C_k}-d_k))$ adaptive multiplier on FP rate; Disparate Impact wrapper penalises any language $> 1.5\times$ baseline.
 \end{minipage}
 }
 
 % ============================================================
 % ROW 3 : Architecture (left) | Headline Result (right)
-% Both blocks use identical total height via matched content + padding
 % ============================================================
 \begin{columns}
 
@@ -196,8 +194,8 @@ $\;\max_\pi V_R^\pi$ subject to $V_{C_k}^\pi \leq d_k$ for all constraints $k$ (
 \textbf{System} & \textbf{Acc.} & \textbf{FP} & \textbf{FN} & \textbf{TIME/BAN} \\
 \midrule
 Keyword filter   & 0.673 & 0.020 & 0.272 & {\color{muaccent}\textbf{$\times$}} \\
-Static threshold & 0.770 & 0.000 & 0.000 & {\color{muaccent}\textbf{$\times$}} \\
-\rowcolor{mubg}\textbf{RL agent} & \textbf{0.736} & 0.153 & $\mathbf{10^{-4}}$ & {\color{mugreen}\textbf{\checkmark}} \\
+Static threshold & 0.720 & 0.190 & 0.250 & {\color{muaccent}\textbf{$\times$}} \\
+\rowcolor{mubg}\textbf{RL agent} & \textbf{0.736} & 0.153 & 0.0001 & {\color{mugreen}\textbf{\checkmark}} \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -233,7 +231,7 @@ The only system tested that correctly issues TIMEOUT and BAN
 \innerblock{Why the RL Agent Wins}{
 \footnotesize
 Static baselines have \textit{no notion of user history}, so they can never reach TIMEOUT or BAN.
-The RL agent's elevated FP (0.153) is dominated by WARN-on-benign — strictly lower-harm than false DELETE/BAN.
+The RL agent's elevated FP (0.153) is dominated by WARN-on-benign strictly lower-harm than false DELETE/BAN.
 }}
 }
 
@@ -263,7 +261,7 @@ The RL agent's elevated FP (0.153) is dominated by WARN-on-benign — strictly l
 \end{tikzpicture}
 \end{center}
 
-\vspace{3mm}
+\vspace{6mm}
 {\colorlet{innerblocktitlebgcolor}{muorange}
 \innerblock{Synthetic Data Pipeline}{
 \normalsize
@@ -271,7 +269,7 @@ The RL agent's elevated FP (0.153) is dominated by WARN-on-benign — strictly l
 Generated via DeepSeek V3.1 from Jigsaw + textdetox seeds, $k$-means clustered.
 80/20 split. Mix: 30\% toxic / 25\% benign / 20\% escalating / 15\% mild / 10\% subtle.
 }}
-\vspace{2mm}
+\vspace{6mm}
 }
 
 \column{0.5}
@@ -279,8 +277,10 @@ Generated via DeepSeek V3.1 from Jigsaw + textdetox seeds, $k$-means clustered.
 \large
 Per-language BAN rate vs.\ the $1.5\times$ parity threshold:\\[2mm]
 
+\vspace{-17mm}
+
 \begin{center}
-\begin{tikzpicture}[font=\small, x=1cm, y=1cm]
+\begin{tikzpicture}[font=\small, x=1cm, y=1cm, scale=1.2, transform shape]
 \foreach \lang/\ratio/\col [count=\i] in {%
     fr/0.10/mugreen, it/0.06/mugreen, es/0.54/mugreen,
     en/0.74/mugreen, de/0.76/mugreen, ja/1.04/mugreen,
@@ -297,7 +297,6 @@ Per-language BAN rate vs.\ the $1.5\times$ parity threshold:\\[2mm]
 \end{tikzpicture}
 \end{center}
 
-\vspace{1mm}
 {\colorlet{innerblocktitlebgcolor}{mugreen}
 \innerblock{Diagnosis: Model Bias, Not Policy Bias}{
 \normalsize
@@ -319,47 +318,39 @@ Calibration cannot fix this $\Rightarrow$ \textit{recommend classifier fine-tuni
 \large
 \begin{itemize}\setlength\itemsep{2mm}
     \item \textbf{Action masking} provides hard procedural guarantees that
-          reward shaping alone cannot match — a learned policy literally
+          reward shaping alone cannot match a learned policy literally
           cannot propose an illegal escalation.
     \item \textbf{Fairness as a training-time objective} (Lagrangian +
           Disparate Impact wrapper) cleanly isolates \textit{policy bias}
           from \textit{model bias}, pointing remediation at the right
           component.
     \item \textbf{Synthetic-data RL with two-stage BC$\to$PPO} reaches
-          actions that static baselines fundamentally cannot produce — the
+          actions that static baselines fundamentally cannot produce the
           only system tested with correct TIMEOUT and BAN behaviour.
 \end{itemize}
 }
 \end{columns}
 
 % ============================================================
-% ROW 5 : By the Numbers  (full width, colourful stat boxes)
-% Block 7 (Trajectory) removed — redundant with per-class bars in Block 5,
-% and was pushing "By the Numbers" off the bottom of the A0 page.
+% ROW 6 : By the Numbers  (full width, colourful stat boxes)
 % ============================================================
-{\colorlet{blockbodybgcolor}{munavy}%
-\colorlet{blockbodyfgcolor}{white}%
 \begin{columns}
 \column{1}
-\block{}{% ============================================================
-% ROW 5 : Key stats as coloured banners on a navy block background
-% ============================================================
+\block{}{%
 \newcommand{\stathex}[3]{%
-    % #1 = colour, #2 = big number, #3 = small label
     \begin{minipage}[c]{0.18\linewidth}
     \centering
-    \fcolorbox{white}{#1}{%
+    \fcolorbox{#1}{#1}{%
         \begin{minipage}[c]{0.93\linewidth}
         \centering\color{white}
         \vspace{4mm}
         {\bfseries\Large #2}\\[2mm]
-        {\bfseries\small #3}
-        \vspace{6mm}
+        {\bfseries\large #3}
+        \vspace{2mm}
         \end{minipage}%
     }
     \end{minipage}%
 }
-
 \noindent\begin{minipage}{\linewidth}
 \centering
 \stathex{munavy}{13}{Languages covered}\hfill
@@ -370,5 +361,5 @@ Calibration cannot fix this $\Rightarrow$ \textit{recommend classifier fine-tuni
 \end{minipage}
 }
 \end{columns}
-}
+
 \end{document}
