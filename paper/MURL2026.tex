@@ -1,0 +1,286 @@
+\documentclass{article}
+
+
+% if you need to pass options to natbib, use, e.g.:
+%     \PassOptionsToPackage{numbers, compress}{natbib}
+% before loading MURL2026
+
+
+% ready for submission
+\usepackage{MURL2026}
+
+
+% to compile a preprint version, e.g., for submission to arXiv, add the
+% [preprint] option:
+%     \usepackage[preprint]{MURL2026}
+
+
+% to compile a camera-ready version, add the [final] option, e.g.:
+%     \usepackage[final]{MURL2026}
+
+
+% to avoid loading the natbib package, add option nonatbib:
+%    \usepackage[nonatbib]{MURL2026}
+
+
+\usepackage[utf8]{inputenc} % allow utf-8 input
+\usepackage[T1]{fontenc}    % use 8-bit T1 fonts
+\usepackage{hyperref}       % hyperlinks
+\usepackage{url}            % simple URL typesetting
+\usepackage{booktabs}       % professional-quality tables
+\usepackage{amsfonts}       % blackboard math symbols
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+\usepackage{xcolor}         % colors
+
+
+\title{Formatting Instructions For MURL 2026}
+
+
+% The \author macro works with any number of authors. There are two commands
+% used to separate the names and addresses of multiple authors: \And and \AND.
+%
+% Using \And between authors leaves it to LaTeX to determine where to break the
+% lines. Using \AND forces a line break at that point. So, if LaTeX puts 3 of 4
+% authors names on the first line, and the last on the second line, try using
+% \AND instead of \And before the third author name.
+
+
+\author{%
+  Author Name \\
+  Department of Computer Science\\
+  Maynooth University\\
+  Maynooth, Co. Kildare, Ireland \\
+  \texttt{author@mu.ie} \\
+  % examples of more authors
+  % \And
+  % Coauthor \\
+  % Affiliation \\
+  % Address \\
+  % \texttt{email} \\
+  % \AND
+  % Coauthor \\
+  % Affiliation \\
+  % Address \\
+  % \texttt{email} \\
+}
+
+
+\begin{document}
+
+
+\maketitle
+
+
+\begin{abstract}
+  The abstract should be a single paragraph summarising the motivation,
+  methods, and key findings of your work. It must be limited to one paragraph
+  and should not exceed 150 words. The word \textbf{Abstract} is centered,
+  bold, and in point size 12.
+\end{abstract}
+
+
+\section{Submission of papers to MURL 2026}
+
+
+Please read the instructions below carefully and follow them faithfully.
+
+
+\subsection{Style}
+
+
+Papers to be submitted to MURL 2026 must be prepared according to the
+instructions presented here. Papers may only be up to {\bf six} pages long,
+including figures. Additional pages \emph{containing only acknowledgments and
+references} are allowed. Papers that exceed the page limit will not be
+reviewed, or in any other way considered for presentation at the conference.
+
+Authors are required to use the MURL \LaTeX{} style files provided with this
+template. Please make sure you use the current files and not previous versions.
+Tweaking the style files may be grounds for rejection.
+
+
+\subsection{Retrieval of style files}
+
+
+The style files for MURL 2026 will be made available on the conference website.
+This template package contains two files that must be kept together:
+\begin{itemize}
+  \item \verb+MURL2026.tex+ — the main template file you write your paper in.
+  \item \verb+MURL2026.sty+ — the style file that must be in the same directory
+  as your \verb+.tex+ file for compilation to succeed.
+\end{itemize}
+
+
+\section{General formatting instructions}
+\label{gen_inst}
+
+
+The text must be confined within a rectangle 5.5~inches (33~picas) wide and
+9~inches (54~picas) long. The left margin is 1.5~inch (9~picas). Use 10~point
+type with a vertical spacing (leading) of 11~points. Times New Roman is the
+preferred typeface throughout. Paragraphs are separated by \nicefrac{1}{2}~line
+space (5.5 points), with no indentation.
+
+The paper title should be 17~point, initial caps/lower case, bold, centered
+between two horizontal rules. All pages should start at 1~inch (6~picas) from
+the top of the page.
+
+For the final version, authors' names are set in boldface, and each name is
+centered above the corresponding address.
+
+Please pay special attention to the instructions in Section \ref{others}
+regarding figures, tables, acknowledgments, and references.
+
+
+\section{Headings: first level}
+\label{headings}
+
+
+All headings should be lower case (except for first word and proper nouns),
+flush left, and bold.
+
+First-level headings should be in 12-point type.
+
+
+\subsection{Headings: second level}
+
+
+Second-level headings should be in 10-point type.
+
+
+\subsubsection{Headings: third level}
+
+
+Third-level headings should be in 10-point type.
+
+
+\paragraph{Paragraphs}
+
+
+There is also a \verb+\paragraph+ command available, which sets the heading in
+bold, flush left, and inline with the text, with the heading followed by 1\,em
+of space.
+
+
+\section{Citations, figures, tables, references}
+\label{others}
+
+
+\subsection{Citations within the text}
+
+
+Citations should follow standard academic practice. Use numbered citations
+in square brackets, e.g.\ [1], or author-year citations where appropriate.
+Ensure all references cited in the text appear in the reference list and
+vice versa. We recommend using a citation management tool such as Mendeley
+to keep your references organised and consistently formatted.
+
+
+\subsection{Figures}
+
+
+\begin{figure}
+  \centering
+  \fbox{\rule[-.5cm]{0cm}{4cm} \rule[-.5cm]{4cm}{0cm}}
+  \caption{Sample figure caption. Figures should be self-contained: include
+  in the caption all relevant parameters and hyperparameters needed to
+  understand the result, so that the figure can be interpreted without
+  referring back to the main text. Ensure all axis labels and legends are
+  legible at the size they appear in the document.}
+\end{figure}
+
+
+All artwork must be neat, clean, and legible. Lines should be dark enough for
+purposes of reproduction. The figure number and caption always appear after the
+figure. Figures are numbered consecutively.
+
+\textbf{Important:} Figures should be self-contained. The caption must include
+all relevant parameters and hyperparameters so that the reader can fully
+interpret the figure without needing to refer back to the main text. Make sure
+all text, axis labels, and legends are legible at the size they appear in the
+document.
+
+You may use colour figures. However, figures should remain interpretable if
+printed in black and white.
+
+
+\subsection{Tables}
+
+
+All tables must be centered, neat, clean and legible. The table number and
+title always appear before the table. See Table~\ref{sample-table}.
+
+Place one line space before the table title, one line space after the
+table title, and one line space after the table. The table title must
+be lower case (except for first word and proper nouns); tables are
+numbered consecutively.
+
+Note that publication-quality tables \emph{do not contain vertical rules.} We
+strongly suggest the use of the \verb+booktabs+ package, which allows for
+typesetting high-quality, professional tables.
+
+
+\begin{table}
+  \caption{Sample table title}
+  \label{sample-table}
+  \centering
+  \begin{tabular}{lll}
+    \toprule
+    \multicolumn{2}{c}{Part}                   \\
+    \cmidrule(r){1-2}
+    Name     & Description     & Size ($\mu$m) \\
+    \midrule
+    Dendrite & Input terminal  & $\sim$100     \\
+    Axon     & Output terminal & $\sim$10      \\
+    Soma     & Cell body       & up to $10^6$  \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+
+\subsection{Final instructions}
+
+
+Do not change any aspects of the formatting parameters in the style files. In
+particular, do not modify the width or length of the rectangle the text should
+fit into, and do not change font sizes. Please note that pages should be
+numbered.
+
+
+\begin{ack}
+Use unnumbered first level headings for the acknowledgments. All acknowledgments
+go at the end of the paper before the list of references.
+Do {\bf not} include this section in the anonymized submission, only in the
+final paper.
+\end{ack}
+
+
+\section*{References}
+
+
+References follow the acknowledgments. Use unnumbered first-level heading for
+the references. It is permissible to reduce the font size to \verb+small+
+(9 point) when listing the references. Note that the reference section does
+not count towards the page limit.
+
+\medskip
+
+{
+\small
+
+[1] Mnih, V.\ et al.\ (2015) Human-level control through deep reinforcement
+learning. {\it Nature}, 518(7540):529--533.
+
+[2] Schulman, J.\ et al.\ (2017) Proximal policy optimization algorithms.
+{\it arXiv preprint arXiv:1707.06347}.
+
+[3] Sutton, R.S.\ \& Barto, A.G.\ (2018) {\it Reinforcement Learning: An
+Introduction.} MIT Press, second edition.
+
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+\end{document}

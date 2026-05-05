@@ -42,3 +42,15 @@ Thumbs.db
 
 # Jupyter
 .ipynb_checkpoints/
+
+# LaTeX build artefacts
+paper/*.aux
+paper/*.log
+paper/*.out
+paper/*.synctex.gz
+
+# Claude memory
+.claude/
+
+# Misc
+0.30
