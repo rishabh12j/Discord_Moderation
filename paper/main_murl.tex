@@ -1,7 +1,7 @@
 % MURL 2026 submission. Compile twice with pdflatex.
 
 \documentclass{article}
-\usepackage[nonatbib]{MURL2026}
+\usepackage[final, nonatbib]{MURL2026}
 
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
@@ -129,7 +129,7 @@ $V^\pi_{C_k} \leq d_k$ for $k = 1, \ldots, K$. The constraints encode fairness
 properties (false-positive rate; per-language ban-rate parity) that we want the
 trained policy to respect, not merely optimize against on average.
 
-We solve the CMDP via Lagrangian relaxation~[5,~14]. The primal--dual objective
+We solve the CMDP via Lagrangian relaxation~[5,~13]. The primal--dual objective
 $\mathcal{L}(\pi, \boldsymbol{\lambda}) = V^\pi_R - \sum_k \lambda_k (V^\pi_{C_k} - d_k)$
 reduces to a standard MDP with augmented per-step reward
 $\tilde{R}_t = R_t - \sum_k \lambda_k C_{k,t}$. The dual variable is updated by
@@ -213,7 +213,8 @@ language had its own model. The policy is implemented as a two-layer MLP with 64
 units per layer and tanh activation, receiving the 403-dimensional observation as
 a flat vector; the representation learning burden is handled upstream by XLM-R
 and MiniLM, so the policy network learns only the mapping from extracted features
-to action distributions.
+to action distributions. Figure~\ref{fig:architecture} shows the end-to-end
+pipeline from raw message to masked action output.
 
 \begin{table}[t]
   \caption{Observation space components (403 total dimensions).}
@@ -223,7 +224,7 @@ to action distributions.
     \toprule
     Symbol & Component & Dims & Description \\
     \midrule
-    $\mathbf{e}_t$ & Message embedding   & 384 & MiniLM-L12-v2~[13] \\
+    $\mathbf{e}_t$ & Message embedding   & 384 & MiniLM-L12-v2~[12] \\
     $s_t$          & Toxicity score      & 1   & Calibrated XLM-R score $\in[0,1]$ \\
     $\mathbf{h}_t$ & User history        & 3   & Warns, timeouts, effective infractions \\
     $\mathbf{q}_t$ & Server context      & 2   & Rolling toxicity rate, action rate \\
@@ -231,6 +232,31 @@ to action distributions.
     \bottomrule
   \end{tabular}
 \end{table}
+
+\begin{figure}[t]
+  \centering
+  \begin{tikzpicture}[
+      node distance=4mm,
+      font=\small\bfseries,
+      box/.style={draw, rounded corners, fill=gray!10,
+                  minimum width=72mm, minimum height=9mm,
+                  align=center, thick},
+  ]
+  \node[box]                    (msg)  {Discord Message + User History};
+  \node[box, below=of msg]      (xlmr) {XLM-R Toxicity Classifier};
+  \node[box, below=of xlmr]     (cal)  {Per-Language Affine Calibration};
+  \node[box, below=of cal]      (obs)  {Observation Vector $\mathbf{o}_t \in \mathbb{R}^{403}$};
+  \node[box, below=of obs]      (ppo)  {MaskablePPO Policy $\pi(a \mid \mathbf{o}_t)$};
+  \node[box, below=of ppo]      (mask) {Action Mask $\mathbf{m}_t$};
+  \node[box, below=of mask]     (act)  {\textsc{Allow} / \textsc{Warn} / \textsc{Delete} / \textsc{Timeout} / \textsc{Ban}};
+  \foreach \a/\b in {msg/xlmr, xlmr/cal, cal/obs, obs/ppo, ppo/mask, mask/act}
+      \draw[-{Stealth[length=3mm]}, thick] (\a)--(\b);
+  \end{tikzpicture}
+  \caption{End-to-end system architecture. Each message is scored, calibrated,
+  and embedded before reaching the shared multilingual policy. The action mask
+  removes illegal escalations from the distribution before sampling.}
+  \label{fig:architecture}
+\end{figure}
 
 
 \section{Per-language calibration of toxicity scores}
@@ -275,7 +301,7 @@ final scaling step bounds the total in $[-1,1]$.
 \section{Two-stage training and escalation-consistency reward}
 \label{sec:training}
 
-Recent work on scaling RL for content moderation~[15] reports that RL-only
+Recent work on scaling RL for content moderation~[14] reports that RL-only
 training without a behavioral prior is unstable: the policy fails to converge
 to a coherent reasoning schema. We therefore split training into two stages.
 In \textbf{Stage~1 (behavior cloning)}, an oracle rule
@@ -296,7 +322,7 @@ estimate used to compute Generalised Advantage Estimation targets with
 $\lambda_{\text{GAE}} = 0.95$, balancing bias and variance in the credit
 assignment signal across the long escalation sequences. Four parallel
 environments yield an effective batch of $16{,}384$ transitions per update, well
-above the $\sim$1{,}024 inflection point identified by~[15].
+above the $\sim$1{,}024 inflection point identified by~[14].
 
 Beyond per-step accuracy, an \textit{escalation-consistency} component
 $R^{\text{esc}}_t$ augments the base reward: it rewards proportional escalation
@@ -304,43 +330,6 @@ when toxicity rises, rewards de-escalation when a user has been clean for three
 or more consecutive steps, and penalises unjustified severity jumps and
 re-punishment of rehabilitating users. The combined reward is
 $R_t = R^{\text{base}}_t + R^{\text{esc}}_t$.
-
-Figure~\ref{fig:architecture} summarises the end-to-end system pipeline,
-from raw Discord message through calibration and policy to the masked action.
-
-\begin{figure}[t]
-  \centering
-  \begin{tikzpicture}[
-      node distance=5mm,
-      font=\small\bfseries,
-      box/.style={draw, rounded corners, fill=gray!10,
-                  minimum width=72mm, minimum height=9mm,
-                  align=center, thick},
-      accent/.style={draw, rounded corners, fill=black, text=white,
-                  minimum width=72mm, minimum height=9mm,
-                  align=center, thick},
-      redbox/.style={draw, rounded corners, fill=red!15,
-                  minimum width=72mm, minimum height=9mm,
-                  align=center, thick},
-      greenbox/.style={draw, rounded corners, fill=green!15,
-                  minimum width=72mm, minimum height=9mm,
-                  align=center, thick},
-  ]
-  \node[box]     (msg)  {Discord Message + User History};
-  \node[box,     below=of msg]  (xlmr) {XLM-R Toxicity Classifier};
-  \node[box,     below=of xlmr] (cal)  {Per-Language Affine Calibration};
-  \node[box,     below=of cal]  (obs)  {Observation Vector $\mathbf{o}_t \in \mathbb{R}^{403}$};
-  \node[accent,  below=of obs]  (ppo)  {MaskablePPO Policy $\pi(a \mid \mathbf{o}_t)$};
-  \node[redbox,  below=of ppo]  (mask) {Action Mask $\mathbf{m}_t$};
-  \node[greenbox,below=of mask] (act)  {\textsc{Allow} / \textsc{Warn} / \textsc{Delete} / \textsc{Timeout} / \textsc{Ban}};
-  \foreach \a/\b in {msg/xlmr, xlmr/cal, cal/obs, obs/ppo, ppo/mask, mask/act}
-      \draw[-{Stealth[length=3mm]}, thick] (\a)--(\b);
-  \end{tikzpicture}
-  \caption{End-to-end system architecture. Each message is scored, calibrated,
-  and embedded before reaching the shared multilingual policy. The action mask
-  removes illegal escalations from the distribution before sampling.}
-  \label{fig:architecture}
-\end{figure}
 
 
 \section{Regex hard overrides for critical threats}
@@ -363,9 +352,9 @@ threat coverage from 9/13 to 13/13 languages.
 
 Training episodes are generated in three stages: (i) a balanced corpus of
 $5{,}000$ toxic and $5{,}000$ benign examples per language is sourced from
-Jigsaw~[11] and \texttt{textdetox/multilingual\_toxicity\_dataset}~[10];
+Jigsaw~[10] and \texttt{textdetox/multilingual\_toxicity\_dataset}~[9];
 (ii) $k$-means clustering on MiniLM embeddings yields diverse per-language
-seeds; and (iii) DeepSeek~V3.1~[12] is prompted via Baseten to synthesize
+seeds; and (iii) DeepSeek~V3.1~[11] is prompted via Baseten to synthesize
 multi-user Discord threads from those seeds. Thread types follow a fixed mix
 (30\% toxic, 20\% escalating, 15\% mild, 10\% subtle, 25\% benign), with
 Hinglish skewed to 20\%/30\% benign/mild. The final dataset comprises 595
@@ -504,7 +493,7 @@ specifically to upstream classifier bias ($+0.095$ for Hindi vs.\ English) that
 compounds through the escalation ladder. Importantly, aggressive calibration
 offsets did not reduce the disparity, confirming the bias is structural to the
 classifier rather than the policy. This separates policy bias from model bias
-cleanly and points classifier fine-tuning~[16] as the recommended remediation.
+cleanly and points classifier fine-tuning~[15] as the recommended remediation.
 
 \begin{table}[!h]
   \caption{Per-language \textsc{Ban} rate fairness audit (held-out test split).}
@@ -541,14 +530,8 @@ higher-severity \textsc{Timeout} and \textsc{Ban} actions, with 89--94\%
 per-class accuracy and a near-zero false-negative rate. The fairness audit
 isolates residual Hindi/Hinglish disparate impact and attributes it to
 upstream classifier bias rather than policy bias, separating concerns for
-future work on classifier fine-tuning, disagreement-based reweighting~[15],
+future work on classifier fine-tuning, disagreement-based reweighting~[14],
 and multi-channel server graph extensions.
-
-
-\begin{ack}
-The author thanks the MURL 2026 course staff for the project framework and
-guidance.
-\end{ack}
 
 
 \section*{References}
@@ -584,31 +567,28 @@ masking in policy gradient algorithms. In {\it Proc.\ FLAIRS}.
 N.\ (2021) Stable-baselines3: Reliable reinforcement learning implementations.
 {\it J.\ Mach.\ Learn.\ Res.}, 22(268):1--8.
 
-[9] Conneau, A.\ et al.\ (2020) Unsupervised cross-lingual representation
-learning at scale. In {\it Proc.\ ACL}, pp.\ 8440--8451.
-
-[10] Dementieva, D.\ et al.\ (2023) Overview of the 1st shared task on
+[9] Dementieva, D.\ et al.\ (2023) Overview of the 1st shared task on
 multilingual text detoxification. In {\it Proc.\ ACL Workshop on NLP for
 Positive Impact}.
 
-[11] Google Jigsaw (2018) Toxic comment classification challenge. Kaggle
+[10] Google Jigsaw (2018) Toxic comment classification challenge. Kaggle
 Competition Dataset.
 \url{https://www.kaggle.com/c/jigsaw-toxic-comment-classification-challenge}
 
-[12] DeepSeek-AI (2024) DeepSeek-V3 technical report.
+[11] DeepSeek-AI (2024) DeepSeek-V3 technical report.
 {\it arXiv preprint arXiv:2412.19437}.
 
-[13] Reimers, N.\ \& Gurevych, I.\ (2019) Sentence-BERT: Sentence embeddings
+[12] Reimers, N.\ \& Gurevych, I.\ (2019) Sentence-BERT: Sentence embeddings
 using Siamese BERT-networks. In {\it Proc.\ EMNLP}, pp.\ 3982--3992.
 
-[14] Stooke, A., Achiam, J.\ \& Abbeel, P.\ (2020) Responsive safety in
+[13] Stooke, A., Achiam, J.\ \& Abbeel, P.\ (2020) Responsive safety in
 reinforcement learning by PID Lagrangian methods. In {\it Proc.\ ICML},
 pp.\ 9133--9143.
 
-[15] Liu, Z.\ et al.\ (2025) Scaling reinforcement learning for content
+[14] Liu, Z.\ et al.\ (2025) Scaling reinforcement learning for content
 moderation with large language models. {\it arXiv preprint arXiv:2512.20061}.
 
-[16] Feldman, M., Friedler, S.~A., Moeller, J., Scheidegger, C.\ \&
+[15] Feldman, M., Friedler, S.~A., Moeller, J., Scheidegger, C.\ \&
 Venkatasubramanian, S.\ (2015) Certifying and removing disparate impact.
 In {\it Proc.\ ACM SIGKDD}, pp.\ 259--268.
 
