@@ -82,7 +82,13 @@ Decision Process. A single MaskablePPO policy operates over a five-level
 escalation ladder (\textsc{Allow}, \textsc{Warn}, \textsc{Delete},
 \textsc{Timeout}, \textsc{Ban}) and is shared across 13 languages, removing the
 need for per-language models and making cross-language fairness comparisons
-meaningful. Two design decisions distinguish the approach. First, the procedural
+meaningful. The oracle rule used to generate the base reward signal cannot be
+deployed directly as a classifier: it has no mechanism to satisfy the Lagrangian
+and Disparate Impact constraints, cannot adjust its behaviour based on aggregate
+cross-episode statistics, and cannot generalise to state combinations outside its
+explicit lookup logic. The RL agent learns from the oracle's signal while
+developing a policy that goes strictly beyond it.
+Two design decisions distinguish the approach. First, the procedural
 escalation rules---bans require prior timeouts, timeouts require prior
 infractions---are enforced as hard action masks rather than reward penalties,
 so the policy cannot even propose an illegal action. Second, fairness is treated
@@ -112,7 +118,10 @@ with observation space $S \subseteq \mathbb{R}^{403}$, discrete action space
 $A = \{0,1,2,3,4\}$ corresponding to \{\textsc{Allow}, \textsc{Warn},
 \textsc{Delete}, \textsc{Timeout}, \textsc{Ban}\}, transition kernel $P$, reward
 $R$, a vector $\mathbf{C}$ of $K$ constraint cost functions with thresholds
-$\mathbf{d}$, and discount factor $\gamma = 0.95$. The objective is to maximize
+$\mathbf{d}$, and discount factor $\gamma = 0.95$, chosen to give meaningful
+weight to escalation decisions made three to five steps before a \textsc{Timeout}
+or \textsc{Ban}, which is the typical sequence length observed in training
+episodes. The objective is to maximize
 the return $V^\pi_R = \mathbb{E}_\pi[\sum_t \gamma^t R_t]$ subject to
 $V^\pi_{C_k} \leq d_k$ for $k = 1, \ldots, K$. The constraints encode fairness
 properties (false-positive rate; per-language ban-rate parity) that we want the
@@ -198,7 +207,11 @@ $\mathbf{o}_t = [\mathbf{e}_t \,\|\, s_t \,\|\, \mathbf{h}_t \,\|\, \mathbf{q}_t
 rather than per-language models makes fairness constraints meaningful: the
 Disparate Impact Wrapper (Section~\ref{sec:fairness}) compares ban rates
 \emph{across} languages within the same policy, which would be incoherent if each
-language had its own model.
+language had its own model. The policy is implemented as a two-layer MLP with 64
+units per layer and tanh activation, receiving the 403-dimensional observation as
+a flat vector; the representation learning burden is handled upstream by XLM-R
+and MiniLM, so the policy network learns only the mapping from extracted features
+to action distributions.
 
 \begin{table}[t]
   \caption{Observation space components (403 total dimensions).}
@@ -272,9 +285,16 @@ for 30 epochs (batch size 256, learning rate $3 \times 10^{-4}$). In
 MaskablePPO~[7] from \texttt{stable-baselines3-contrib}~[8] and fine-tuned for
 $10^6$ timesteps. We use $n_{\text{steps}} = 4096$, batch size $= 256$,
 $n_{\text{epochs}} = 10$, $\gamma = 0.95$, learning rate $3 \times 10^{-4}$,
-entropy coefficient $0.01$, max gradient norm $0.5$. Four parallel environments
-yield an effective batch of $16{,}384$ transitions per update, well above the
-$\sim$1{,}024 inflection point identified by~[15].
+entropy coefficient $0.01$, max gradient norm $0.5$. The entropy coefficient
+maintains sufficient exploration pressure to prevent premature policy collapse
+onto the behaviour-cloned initialisation while remaining small enough not to
+destabilise the escalation-consistency trajectory signal. The critic network
+shares weights with the actor up to the final layer and outputs a scalar value
+estimate used to compute Generalised Advantage Estimation targets with
+$\lambda_{\text{GAE}} = 0.95$, balancing bias and variance in the credit
+assignment signal across the long escalation sequences. Four parallel
+environments yield an effective batch of $16{,}384$ transitions per update, well
+above the $\sim$1{,}024 inflection point identified by~[15].
 
 Beyond per-step accuracy, an \textit{escalation-consistency} component shapes
 trajectory quality:
@@ -321,7 +341,11 @@ multi-user Discord threads from those seeds. Thread types follow a fixed mix
 (30\% toxic, 20\% escalating, 15\% mild, 10\% subtle, 25\% benign), with
 Hinglish skewed to 20\%/30\% benign/mild. The final dataset comprises 595
 episodes (8,016 steps) across 14 language categories
-(Table~\ref{tab:lang_dist}) under an 80/20 train/test split.
+(Table~\ref{tab:lang_dist}) under an 80/20 train/test split. Each episode
+corresponds to a single Discord thread moderated from start to finish; the
+environment resets user infraction histories and server context at episode
+boundaries, making each thread an independent trajectory for the purposes of
+policy gradient estimation.
 
 \begin{table}[t]
   \caption{Language distribution in evaluation corpus (8,016 steps).}
@@ -345,6 +369,12 @@ episodes (8,016 steps) across 14 language categories
 
 \section{Results}
 \label{sec:results}
+
+\paragraph{Training convergence.}
+Training reward curves confirmed convergence: cumulative episodic return
+plateaued within approximately 400{,}000 timesteps and showed no regression over
+the remaining 600{,}000, indicating the behaviour-cloned initialisation
+successfully prevented the instability reported in RL-only baselines.
 
 \paragraph{Reaching higher-severity actions.}
 Table~\ref{tab:baseline} compares the RL agent against two baselines on the
