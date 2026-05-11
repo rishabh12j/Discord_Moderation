@@ -21,6 +21,8 @@
 \usepackage{xcolor}
 \usepackage{graphicx}
 \graphicspath{{figures/}}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning}
 
 
 \title{Learning When to Warn, When to Ban:\\Constrained Reinforcement Learning for Multilingual Content Moderation}
@@ -296,22 +298,49 @@ assignment signal across the long escalation sequences. Four parallel
 environments yield an effective batch of $16{,}384$ transitions per update, well
 above the $\sim$1{,}024 inflection point identified by~[15].
 
-Beyond per-step accuracy, an \textit{escalation-consistency} component shapes
-trajectory quality:
-\begin{equation}\label{eq:esc_reward}
-  R^{\text{esc}}_t =
-  \begin{cases}
-    +0.3 & a_t > a_{t-1},\; s_t - s_{t-1} > 0.10 \\
-    +0.2 & a_t = 0,\; s_t < 0.20,\; c_t \geq 3 \\
-    -0.4 & a_t - a_{t-1} \geq 2,\; s_t - s_{t-1} < 0.20 \\
-    -0.3 & a_t > 0,\; c_t \geq 5,\; s_t < 0.30 \\
-    0    & \text{otherwise.}
-  \end{cases}
-\end{equation}
-This rewards proportional escalation when toxicity rises, allows for
-de-escalation when a user has been clean, and penalizes both unjustified
-severity jumps and re-punishment of users who are visibly rehabilitating.
-The combined reward is $R_t = R^{\text{base}}_t + R^{\text{esc}}_t$.
+Beyond per-step accuracy, an \textit{escalation-consistency} component
+$R^{\text{esc}}_t$ augments the base reward: it rewards proportional escalation
+when toxicity rises, rewards de-escalation when a user has been clean for three
+or more consecutive steps, and penalises unjustified severity jumps and
+re-punishment of rehabilitating users. The combined reward is
+$R_t = R^{\text{base}}_t + R^{\text{esc}}_t$.
+
+Figure~\ref{fig:architecture} summarises the end-to-end system pipeline,
+from raw Discord message through calibration and policy to the masked action.
+
+\begin{figure}[t]
+  \centering
+  \begin{tikzpicture}[
+      node distance=5mm,
+      font=\small\bfseries,
+      box/.style={draw, rounded corners, fill=gray!10,
+                  minimum width=72mm, minimum height=9mm,
+                  align=center, thick},
+      accent/.style={draw, rounded corners, fill=black, text=white,
+                  minimum width=72mm, minimum height=9mm,
+                  align=center, thick},
+      redbox/.style={draw, rounded corners, fill=red!15,
+                  minimum width=72mm, minimum height=9mm,
+                  align=center, thick},
+      greenbox/.style={draw, rounded corners, fill=green!15,
+                  minimum width=72mm, minimum height=9mm,
+                  align=center, thick},
+  ]
+  \node[box]     (msg)  {Discord Message + User History};
+  \node[box,     below=of msg]  (xlmr) {XLM-R Toxicity Classifier};
+  \node[box,     below=of xlmr] (cal)  {Per-Language Affine Calibration};
+  \node[box,     below=of cal]  (obs)  {Observation Vector $\mathbf{o}_t \in \mathbb{R}^{403}$};
+  \node[accent,  below=of obs]  (ppo)  {MaskablePPO Policy $\pi(a \mid \mathbf{o}_t)$};
+  \node[redbox,  below=of ppo]  (mask) {Action Mask $\mathbf{m}_t$};
+  \node[greenbox,below=of mask] (act)  {\textsc{Allow} / \textsc{Warn} / \textsc{Delete} / \textsc{Timeout} / \textsc{Ban}};
+  \foreach \a/\b in {msg/xlmr, xlmr/cal, cal/obs, obs/ppo, ppo/mask, mask/act}
+      \draw[-{Stealth[length=3mm]}, thick] (\a)--(\b);
+  \end{tikzpicture}
+  \caption{End-to-end system architecture. Each message is scored, calibrated,
+  and embedded before reaching the shared multilingual policy. The action mask
+  removes illegal escalations from the distribution before sampling.}
+  \label{fig:architecture}
+\end{figure}
 
 
 \section{Regex hard overrides for critical threats}
